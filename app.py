@@ -5,6 +5,7 @@ import urllib.parse
 import pytz
 import pandas as pd
 import requests
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Radar de Mercado", page_icon="📈")
 
@@ -30,6 +31,48 @@ def calcular_rsi(serie, periodo=14):
 def format_vol(vol):
     if vol >= 1e9: return f"${vol/1e9:.1f}B"
     return f"${vol/1e6:.0f}M"
+
+def botao_copiar(label, texto_para_copiar, cor="#FF4B4B"):
+    id_html = label.lower().replace(" ", "_")
+    html_code = f"""
+    <div style="margin-bottom: 10px;">
+        <button id="btn_{id_html}" style="
+            width: 100%;
+            background-color: {cor};
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: 0.3s;
+        ">
+            📋 {label}
+        </button>
+    </div>
+    <script>
+    document.getElementById('btn_{id_html}').addEventListener('click', function() {{
+        const text = '{texto_para_copiar}';
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        
+        const btn = document.getElementById('btn_{id_html}');
+        const originalText = btn.innerText;
+        btn.innerText = '✅ COPIADO!';
+        btn.style.backgroundColor = '#28a745';
+        setTimeout(function() {{
+            btn.innerText = originalText;
+            btn.style.backgroundColor = '{cor}';
+        }}, 2000);
+    }});
+    </script>
+    """
+    return components.html(html_code, height=70)
 
 # --- CONFIGURAÇÃO DE ATIVOS ---
 macros_sentimento = {
@@ -149,17 +192,15 @@ st.write("Se este radar te ajuda, considere enviar um incentivo para mantermos o
 col_pix, col_binance = st.columns(2)
 
 with col_pix:
-    with st.expander("💳 Doar via PIX", expanded=False):
-        st.write("Copie o código e cole no app do seu banco:")
-        pix_code = "00020126700014BR.GOV.BCB.PIX0136841f1261-6e84-4132-9fcf-7e6eda71bb9e0208obrigado5204000053039865802BR5924Antonio Edinardo Pereira6009SAO PAULO62140510I8eDCHZjNB63048BFC"
-        st.code(pix_code, language="text")
-        st.caption("Beneficiário: Antonio Edinardo Pereira")
+    st.write("**PIX Copia e Cola**")
+    pix_code = "00020126700014BR.GOV.BCB.PIX0136841f1261-6e84-4132-9fcf-7e6eda71bb9e0208obrigado5204000053039865802BR5924Antonio Edinardo Pereira6009SAO PAULO62140510I8eDCHZjNB63048BFC"
+    botao_copiar("Copiar PIX", pix_code, cor="#00b5a4") 
+    st.caption("Beneficiário: Antonio Edinardo")
 
 with col_binance:
-    with st.expander("🟡 Doar via Binance Pay", expanded=False):
-        st.write("Envie qualquer cripto via **Pay ID**:")
-        # Seu Binance Pay ID real inserido aqui
-        st.code("511081814", language="text")
-        st.caption("No App: Pay > Enviar > ID do Pay")
+    st.write("**Binance Pay ID**")
+    pay_id = "511081814"
+    botao_copiar("Copiar Pay ID", pay_id, cor="#F3BA2F") 
+    st.caption("No App: Pay > Enviar > ID")
 
 st.caption("Privacidade garantida: Transações via gateway seguro. 🛡️")
