@@ -56,7 +56,7 @@ todas_criptos = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ALGO-U
 # --- LÓGICA BOTÃO 1 ---
 if btn_geral:
     with st.spinner('Gerando Panorama Global...'):
-        dados = yf.download(list(macros.values()) + ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"], period="2d", interval="1d", progress=False)['Close']
+        dados = yf.download(list(macros.values()) + ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"], period="5d", interval="1d", progress=False)['Close']
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         
         msg = f"📡 *PANORAMA GLOBAL \n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
@@ -66,20 +66,13 @@ if btn_geral:
             msg += f"{'💹' if var>=0 else '📉'} {c.replace('-USD','')}: US$ {p:,.2f} ({var:+.2f}%)\n"
         
         msg += "\n⚒️ *Macro\n"
-        # Verifica se mercado B3 está aberto (10h-18h seg a sex)
-        b3_aberta = 10 <= agora.hour < 18 and agora.weekday() < 5
-        # Verifica se mercado EUA está aberto (10h-17h seg a sex)
-        eua_aberto = 10 <= agora.hour < 17 and agora.weekday() < 5
-
         for nome, ticker in macros.items():
-            is_b3 = any(x in ticker for x in [".SA", "^BVSP"])
-            is_eua = any(x in ticker for x in ["YM=F", "ES=F", "NQ=F"])
-            
-            if (is_b3 and not b3_aberta) or (is_eua and not eua_aberto):
+            p = dados[ticker].iloc[-1]
+            if pd.isna(p):
                 msg += f"{nome}: 🔴 Fechado\n"
             else:
-                p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-                sufixo = "pts" if "^" in ticker or "=F" in ticker else ""
+                var = ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+                sufixo = "pts" if any(x in ticker for x in ["^", "=F"]) else ""
                 msg += f"{nome}: {p:,.2f}{sufixo} ({var:+.2f}%)\n"
         
         st.text_area("Cópia:", msg, height=400)
