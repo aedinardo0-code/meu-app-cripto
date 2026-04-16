@@ -68,28 +68,44 @@ if btn_macro:
         
         msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         
+        # 🌡️ Indicadores de Sentimento
         msg += "🌡️ *Indicadores de Sentimento*\n"
         for nome, ticker in macros_sentimento.items():
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            desc = " (Força do dólar)" if "DXY" in nome else " (Custo do dinheiro)" if "Treasury" in nome else " (Volatilidade)"
-            msg += f"{nome}: {p:,.2f} ({var:+.2f}%){desc}\n"
+            p = dados[ticker].iloc[-1]
+            if pd.isna(p): msg += f"{nome}: 🔴 Fechado\n"
+            else:
+                var = ((p/dados[ticker].iloc[-2])-1)*100
+                desc = " (Força do dólar)" if "DXY" in nome else " (Custo do dinheiro)" if "Treasury" in nome else " (Volatilidade)"
+                msg += f"{nome}: {p:,.2f} ({var:+.2f}%){desc}\n"
 
+        # 🌎 Mercado Americano
         msg += "\n🌎 *Mercado Americano (Wall St)*\n"
         for nome, ticker in macros_eua.items():
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {nome.split(' ')[1]}: {p:,.2f} ({var:+.2f}%)\n"
+            p = dados[ticker].iloc[-1]
+            if pd.isna(p): msg += f"{nome}: 🔴 Fechado\n"
+            else:
+                var = ((p/dados[ticker].iloc[-2])-1)*100
+                msg += f"{'💹' if var>=0 else '📉'} {nome.split(' ')[1]}: {p:,.2f} ({var:+.2f}%)\n"
 
+        # 🇧🇷 Mercado Brasileiro
         msg += "\n🇧🇷 *Mercado Brasileiro (B3)*\n"
         for nome, ticker in macros_br.items():
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+            p = dados[ticker].iloc[-1]
+            if pd.isna(p): msg += f"{nome}: 🔴 Fechado\n"
+            else:
+                var = ((p/dados[ticker].iloc[-2])-1)*100
+                msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
         msg += "🏦 Selic: 10,75% a.a (Meta atual)\n"
 
+        # 📦 Commodities & Blue Chips
         msg += "\n📦 *Commodities & Blue Chips*\n"
         for nome, ticker in macros_commodities.items():
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            emoji = "🚀" if var >= 3.0 else "💹" if var >= 0 else "📉"
-            msg += f"{emoji} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+            p = dados[ticker].iloc[-1]
+            if pd.isna(p): msg += f"{nome}: 🔴 Fechado\n"
+            else:
+                var = ((p/dados[ticker].iloc[-2])-1)*100
+                emoji = "🚀" if var >= 3.0 else "💹" if var >= 0 else "📉"
+                msg += f"{emoji} {nome}: {p:,.2f} ({var:+.2f}%)\n"
         
         st.text_area("Cópia Macro:", msg, height=450)
         st.link_button("📲 ENVIAR MACRO", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
