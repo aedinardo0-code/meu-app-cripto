@@ -60,35 +60,51 @@ def status_mercados_horarios():
 # --- INTERFACE ---
 st.title("📡 Radar de Mercado")
 
-if st.button('🚀 GERAR RELATÓRIO AGORA', use_container_width=True):
-    with st.spinner('Coletando dados...'):
-        agora_br = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
-        criptos = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "POL-USD", "ADA-USD", "DOT-USD", "LINK-USD", "DOGE-USD"]
-        macros = ["USDBRL=X", "BZ=F", "GC=F", "SI=F", "^TNX"]
-        b3 = ["^BVSP", "PETR4.SA", "VALE3.SA", "ITUB4.SA", "BBDC4.SA"]
-        globais = ["YM=F", "ES=F", "NQ=F"]
-        
-        dados = yf.download(criptos + macros + b3 + globais, period="35d", interval="1d", progress=False)['Close']
-        fng_real = buscar_fear_greed_real()
-        dom_real = buscar_dominancia_real()
+col1, col2 = st.columns(2)
 
-        msg = f"📡 *PANORAMA GLOBAL & CRIPTO* \n🕒 {agora_br}\n\n"
+with col1:
+    btn_geral = st.button('🚀 RELATÓRIO GERAL', use_container_width=True)
+
+with col2:
+    btn_radar = st.button('🎯 RADAR CRIPTO', use_container_width=True)
+
+# LISTAS DE ATIVOS
+criptos_lista = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ADA-USD", "DOGE-USD", "LINK-USD", "ALGO-USD"]
+macros_b3 = ["USDBRL=X", "BZ=F", "GC=F", "^BVSP", "PETR4.SA", "VALE3.SA"]
+globais = ["YM=F", "ES=F", "NQ=F"]
+
+# LÓGICA BOTÃO 1: RELATÓRIO GERAL (TUDO)
+if btn_geral:
+    with st.spinner('Coletando dados...'):
+        dados = yf.download(criptos_lista + macros_b3 + globais, period="35d", interval="1d", progress=False)['Close']
+        agora_br = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
+        msg = f"📡 *PANORAMA GLOBAL COMPLETO* \n🕒 {agora_br}\n\n"
         rsi_v, rsi_s = calcular_rsi(dados["BTC-USD"])
         if rsi_v: msg += f"📈 RSI Bitcoin (14D): {rsi_v:.2f} ({rsi_s})\n"
-        msg += f"🌡️ Fear & Greed Index: {fng_real}\n"
-        msg += f"📉 Dominância BTC: {dom_real}\n\n"
-
-        msg += "🪙 *Principais Criptos:*\n"
-        for nome, t in {"Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD"}.items():
-            col = dados[t].dropna()
-            p_at, p_ant = col.iloc[-1], col.iloc[-2]
+        msg += f"🌡️ Fear & Greed: {buscar_fear_greed_real()}\n"
+        msg += f"📉 Dominância BTC: {buscar_dominancia_real()}\n\n"
+        msg += "🪙 *Principais Moedas:*\n"
+        for c in ["BTC-USD", "ETH-USD", "SOL-USD"]:
+            p_at, p_ant = dados[c].iloc[-1], dados[c].iloc[-2]
             var = ((p_at - p_ant) / p_ant) * 100
-            msg += f"{'💹' if var >= 0 else '📉'} {nome}: US$ {p_at:,.2f} ({var:+.2f}%)\n"
-
+            msg += f"{'💹' if var >= 0 else '📉'} {c.replace('-USD','')}: US$ {p_at:,.2f} ({var:+.2f}%)\n"
         msg += status_mercados_horarios()
+        st.text_area("Cópia:", msg, height=250)
+        st.link_button("📲 WHATSAPP", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-        st.success("Relatório Gerado!")
-        st.text_area("Texto formatado:", value=msg, height=300)
-        
-        link_zap = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}"
-        st.link_button("📲 ENVIAR PARA WHATSAPP", link_zap, use_container_width=True)
+# LÓGICA BOTÃO 2: RADAR CRIPTO (SÓ CRIPTOS + RSI BTC)
+if btn_radar:
+    with st.spinner('Analisando criptos...'):
+        dados_c = yf.download(criptos_lista, period="35d", interval="1d", progress=False)['Close']
+        msg_radar = "🎯 *RADAR DE OPORTUNIDADES CRIPTO*\n\n"
+        rsi_btc_v, rsi_btc_s = calcular_rsi(dados_c["BTC-USD"])
+        msg_radar += f"📊 *FORÇA TÉCNICA BITCOIN*\n"
+        msg_radar += f"RSI (14D): {rsi_btc_v:.2f} -> {rsi_btc_s}\n"
+        msg_radar += "--------------------------\n\n"
+        msg_radar += "💰 *Variação das Moedas:*\n"
+        for ticker in criptos_lista:
+            p_at, p_ant = dados_c[ticker].iloc[-1], dados_c[ticker].iloc[-2]
+            var = ((p_at - p_ant) / p_ant) * 100
+            msg_radar += f"{'🟢' if var >= 0 else '🔴'} {ticker.replace('-USD','')}: US$ {p_at:,.2f} ({var:+.2f}%)\n"
+        st.text_area("Resultado Radar:", msg_radar, height=250)
+        st.link_button("📲 ENVIAR RADAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_radar)}", use_container_width=True)
