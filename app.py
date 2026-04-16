@@ -50,7 +50,7 @@ narrativas = {
     "🌐 Web3/L1": ["ETH-USD", "SOL-USD"],
     "🤡 Memes": ["DOGE-USD", "WIF-USD"]
 }
-favs = [("Algorand", "ALGO-USD"), ("Avax", "AVAX-USD"), ("XRP", "XRP-USD")]
+favs = [("ALGO", "ALGO-USD"), ("AVAX", "AVAX-USD"), ("XRP", "XRP-USD")]
 criptos_radar = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ALGO-USD", "TIA-USD", "OP-USD", "ADA-USD", "TRX-USD"] + [a for sub in narrativas.values() for a in sub]
 
 # --- INTERFACE ---
@@ -68,7 +68,6 @@ if btn_macro:
         
         msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         
-        # 🌡️ Indicadores de Sentimento
         msg += "🌡️ *Indicadores de Sentimento*\n"
         for nome, ticker in macros_sentimento.items():
             p = dados[ticker].iloc[-1]
@@ -78,7 +77,6 @@ if btn_macro:
                 desc = " (Força do dólar)" if "DXY" in nome else " (Custo do dinheiro)" if "Treasury" in nome else " (Volatilidade)"
                 msg += f"{nome}: {p:,.2f} ({var:+.2f}%){desc}\n"
 
-        # 🌎 Mercado Americano
         msg += "\n🌎 *Mercado Americano (Wall St)*\n"
         for nome, ticker in macros_eua.items():
             p = dados[ticker].iloc[-1]
@@ -87,7 +85,6 @@ if btn_macro:
                 var = ((p/dados[ticker].iloc[-2])-1)*100
                 msg += f"{'💹' if var>=0 else '📉'} {nome.split(' ')[1]}: {p:,.2f} ({var:+.2f}%)\n"
 
-        # 🇧🇷 Mercado Brasileiro
         msg += "\n🇧🇷 *Mercado Brasileiro (B3)*\n"
         for nome, ticker in macros_br.items():
             p = dados[ticker].iloc[-1]
@@ -97,7 +94,6 @@ if btn_macro:
                 msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
         msg += "🏦 Selic: 10,75% a.a (Meta atual)\n"
 
-        # 📦 Commodities & Blue Chips
         msg += "\n📦 *Commodities & Blue Chips*\n"
         for nome, ticker in macros_commodities.items():
             p = dados[ticker].iloc[-1]
@@ -119,27 +115,51 @@ if btn_radar:
         
         rsi_v, rsi_s = calcular_rsi(precos["BTC-USD"])
         btc_p, btc_var = precos["BTC-USD"].iloc[-1], ((precos["BTC-USD"].iloc[-1]/precos["BTC-USD"].iloc[-2])-1)*100
+        alerta_rsi = "⚠️ Risco de topo" if rsi_v >= 70 else "⚖️ Equilíbrio" if rsi_v > 30 else "📉 Oportunidade"
         
-        msg = f"📡 *PANORAMA CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        msg += f"📊 *Bitcoin:* US$ {btc_p:,.2f}\n🧭 Tendência: {'💹 Alta' if btc_var > 0 else '📉 Baixa'}\n📈 RSI BTC: {rsi_v:.2f} ({rsi_s})\nDominância 🍕 {buscar_dominancia()}\n\n"
+        msg = f"📡 *RADAR CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
+        msg += f"📊 *Market Leader: Bitcoin*\n💵 Preço: US$ {btc_p:,.2f}\n🧭 Tendência: {'💹 Alta' if btc_var > 0 else '📉 Baixa'}\n🔥 RSI: {rsi_v:.2f} ({rsi_s})\n💡 *{alerta_rsi}*\n🍕 Dominância: {buscar_dominancia()}\n\n"
         
-        msg += "⭐ *Minhas Favoritas*\n"
-        for nome, tk in favs: msg += f"💎 {nome}: US$ {precos[tk].iloc[-1]:,.4f}\n"
+        msg += "💎 *Portfólio Estratégico*\n"
+        f_list = [f"{n}: ${precos[tk].iloc[-1]:,.3f}" for n, tk in favs]
+        msg += " | ".join(f_list) + "\n\n"
             
-        msg += "\n🏆 *Ranking de Narrativas (Volume)*"
+        msg += "🏆 *Narrativas & Fluxo de Volume*"
         for narra, ativos in narrativas.items():
-            msg += f"\n{narra}:"
-            for i, t in enumerate(ativos, 1):
-                p, var = precos[t].iloc[-1], ((precos[t].iloc[-1]/precos[t].iloc[-2])-1)*100
-                emoji = " ⚡" if var >= 3.0 else ""
-                msg += f"\n {i}º {t.replace('-USD','')}: ${p:,.3f} ({var:+.2f}%){emoji}\n    ∟ Vol: {format_vol(volumes[t])}"
+            t1 = ativos[0]
+            p1, v1 = precos[t1].iloc[-1], ((precos[t1].iloc[-1]/precos[t1].iloc[-2])-1)*100
+            emoji_n = "🚀" if v1 > 5 else "💹" if v1 > 0 else "📉"
+            msg += f"\n{emoji_n} *{narra}:* {t1.replace('-USD','')}: {v1:+.2f}% | Vol: {format_vol(volumes[t1])}"
         
         variacoes = ((precos.iloc[-1] / precos.iloc[-2]) - 1) * 100
-        msg += f"\n\n🚀 *Top 3 Altas* ⚡"
-        for t, v in variacoes.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}% ⚡"
+        msg += f"\n\n🚀 *Top 3 Momentum* ⚡"
+        for t, v in variacoes.nlargest(3).items(): msg += f"\n🟩 *{t.replace('-USD','')}*: {v:+.2f}% ⚡"
         
-        msg += f"\n\n⚠️ *Top 3 Baixas*"
-        for t, v in variacoes.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}% 🪫"
+        msg += f"\n\n⚠️ *Top 3 Fraqueza*"
+        for t, v in variacoes.nsmallest(3).items(): msg += f"\n🟥 *{t.replace('-USD','')}*: {v:+.2f}% 🪫"
 
         st.text_area("Cópia Radar:", msg, height=500)
         st.link_button("📲 ENVIAR RADAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
+
+# --- SEÇÃO DE APOIO/DOAÇÃO ---
+st.markdown("---")
+st.subheader("🚀 Apoie o Projeto")
+st.write("Se este radar te ajuda, considere enviar um incentivo para mantermos o servidor online!")
+
+col_pix, col_binance = st.columns(2)
+
+with col_pix:
+    with st.expander("💳 Doar via PIX", expanded=False):
+        st.write("Copie o código e cole no app do seu banco:")
+        pix_code = "00020126700014BR.GOV.BCB.PIX0136841f1261-6e84-4132-9fcf-7e6eda71bb9e0208obrigado5204000053039865802BR5924Antonio Edinardo Pereira6009SAO PAULO62140510I8eDCHZjNB63048BFC"
+        st.code(pix_code, language="text")
+        st.caption("Beneficiário: Antonio Edinardo Pereira")
+
+with col_binance:
+    with st.expander("🟡 Doar via Binance Pay", expanded=False):
+        st.write("Envie qualquer cripto via **Pay ID**:")
+        # Seu Binance Pay ID real inserido aqui
+        st.code("511081814", language="text")
+        st.caption("No App: Pay > Enviar > ID do Pay")
+
+st.caption("Privacidade garantida: Transações via gateway seguro. 🛡️")
