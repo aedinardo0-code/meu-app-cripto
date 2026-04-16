@@ -8,18 +8,22 @@ import requests
 
 st.set_page_config(page_title="Radar de Mercado", page_icon="📈")
 
-# --- FUNÇÕES DE BUSCA ---
-def buscar_dominancia():
+# --- FUNÇÕES AUXILIARES ---
+def buscar_fng_e_dom():
     try:
-        r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
-        return f"{r['data']['market_cap_percentage']['btc']:.1f}%"
-    except: return "57.2%"
+        fng_r = requests.get("https://api.alternative.me/fng/", timeout=5).json()
+        val = fng_r['data'][0]['value']
+        cl = fng_r['data'][0]['value_classification']
+        trad = {"Extreme Fear": "Medo Extremo", "Fear": "Medo", "Neutral": "Neutro", "Greed": "Ganância", "Extreme Greed": "Ganância Extrema"}
+        
+        dom_r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
+        dom = f"{dom_r['data']['market_cap_percentage']['btc']:.1f}%"
+        return f"{val} ({trad.get(cl, cl)})", dom
+    except: return "23 (Medo Extremo)", "57.1%"
 
 def calcular_rsi(serie, periodo=14):
     try:
-        serie_limpa = serie.dropna()
-        if len(serie_limpa) < periodo: return 0, "Dados Insuficientes"
-        delta = serie_limpa.diff()
+        delta = serie.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=periodo).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=periodo).mean()
         rs = gain / loss
@@ -29,20 +33,14 @@ def calcular_rsi(serie, periodo=14):
         return val, status
     except: return 0, "Erro"
 
-def status_mercados():
-    tz = pytz.timezone('America/Sao_Paulo')
-    agora = datetime.now(tz)
-    minutos = agora.hour * 60 + agora.minute
-    dia = agora.weekday()
-    txt = "\n🕒 *Status dos Mercados (Brasília)*\n"
-    if dia >= 5: return txt + "🛑 Fim de semana: Mercados *FECHADOS*."
-    h = {"🇧🇷 B3": (600, 1080, "10h-18h"), "🇺🇸 EUA": (600, 1020, "10h-17h"), "🏮 Ásia": (1260, 240, "21h-04h")}
-    mercados_abertos = {}
-    for m, (ab, fc, hr) in h.items():
-        aberto = ab <= minutos < fc if ab < fc else minutos >= ab or minutos < fc
-        txt += f"{m}: {'🟢 Aberto' if aberto else '🔴 Fechado'} ({hr})\n"
-        mercados_abertos[m] = aberto
-    return txt, mercados_abertos
+def get_emoji_dinamico(var):
+    if var >= 3.0: return " ⚡"
+    if var <= -5.0: return " 🪫"
+    return ""
+
+def format_vol(vol):
+    if vol >= 1e9: return f"${vol/1e9:.1f}B"
+    return f"${vol/1e6:.0f}M"
 
 # --- INTERFACE ---
 st.title("📡 Radar de Mercado")
@@ -50,54 +48,77 @@ col1, col2 = st.columns(2)
 with col1: btn_geral = st.button('🚀 RELATÓRIO GERAL', use_container_width=True)
 with col2: btn_radar = st.button('🎯 RADAR CRIPTO', use_container_width=True)
 
-# LISTAS DE ATIVOS
-criptos_top = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ADA-USD", "DOGE-USD", "LINK-USD", "ALGO-USD", "THETA-USD", "INJ-USD", "TIA-USD", "ARB-USD"]
-macros = {"💵 Dólar": "USDBRL=X", "🛢️ Petróleo": "BZ=F", "📀 Ouro": "GC=F", "⚪ Prata": "SI=F", "🇧🇷 Ibovespa": "^BVSP", "⛽ Petrobras": "PETR4.SA", "💎 Vale": "VALE3.SA", "🏦 Itaú": "ITUB4.SA", "📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F"}
+# CONFIGURAÇÃO DE ATIVOS
+macros = {"💵 Dólar": "USDBRL=X", "🛢️ Petróleo": "BZ=F", "📀 Ouro": "GC=F", "🇧🇷 Ibovespa": "^BVSP", "⛽ Petrobras": "PETR4.SA", "💎 Vale": "VALE3.SA", "🏦 Itaú": "ITUB4.SA"}
+narrativas = {
+    "🤖 IA": ["NEAR-USD", "FET-USD"],
+    "🏢 RWA": ["LINK-USD", "ONDO-USD"],
+    "🌐 Web3/L1": ["ETH-USD", "SOL-USD"],
+    "🤡 Memes": ["DOGE-USD", "WIF-USD"]
+}
+todas_criptos = ["BTC-USD", "ALGO-USD", "AVAX-USD", "XRP-USD", "TIA-USD", "OP-USD", "ADA-USD", "TRX-USD"] + [item for sublist in narrativas.values() for item in sublist]
 
 if btn_geral:
-    with st.spinner('Validando dados em tempo real...'):
-        dados = yf.download(criptos_top + list(macros.values()), period="30d", interval="1d", progress=False)['Close']
-        agora_br = datetime.now(pytz.timezone('America/Sao_Paulo'))
-        txt_horarios, status_map = status_mercados()
+    with st.spinner('Consolidando Mercado...'):
+        dados = yf.download(list(macros.values()) + ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"], period="2d", interval="1d", progress=False)['Close']
+        tz = pytz.timezone('America/Sao_Paulo')
+        agora = datetime.now(tz)
         
-        rsi_v, rsi_s = calcular_rsi(dados["BTC-USD"])
-        msg = f"📡 *PANORAMA GLOBAL & CRIPTO* \n🕒 {agora_br.strftime('%d/%m/%Y %H:%M')}\n\n📊 *Análise Técnica & Sentimento*\n📈 RSI Bitcoin (14D): {rsi_v:.2f} ({rsi_s})\n📉 Dominância BTC: {buscar_dominancia()}\n\n"
-        
+        msg = f"📡 *PANORAMA GLOBAL & CRIPTO* \n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         msg += "🪙 *Mercado Cripto: Principais*\n"
         for c in ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"]:
             p, var = dados[c].iloc[-1], ((dados[c].iloc[-1]/dados[c].iloc[-2])-1)*100
             msg += f"{'💹' if var>=0 else '📉'} {c.replace('-USD','')}: US$ {p:,.2f} ({var:+.2f}%)\n"
         
-        variacoes = ((dados[criptos_top].iloc[-1] / dados[criptos_top].iloc[-2]) - 1) * 100
-        msg += f"\n⬆️ *Top Performance*: {variacoes.idxmax().replace('-USD','')} ({variacoes.max():+.2f}%)\n"
-        
         msg += "\n———————————————\n\n⚒️ *Macro, Bolsa & Commodities*\n"
+        is_b3_open = (10 <= agora.hour < 18) and agora.weekday() < 5
         for nome, ticker in macros.items():
-            # Verifica se é B3 e se o mercado está fechado
-            es_b3 = any(x in ticker for x in [".SA", "^BVSP"])
-            if es_b3 and not status_map["🇧🇷 B3"]:
+            if any(x in ticker for x in [".SA", "^BVSP"]) and not is_b3_open:
                 msg += f"{nome}: 🔴 FECHADO\n"
             else:
-                p = dados[ticker].iloc[-1]
-                var = ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-                if pd.isna(p) or p == dados[ticker].iloc[-2]: # Se o preço não mudou nada, mercado provavelmente parado
-                     msg += f"{nome}: 🔴 FECHADO\n"
-                else:
-                    sufixo = "pts" if ticker in ["^BVSP", "YM=F", "ES=F", "NQ=F"] else ""
-                    msg += f"{nome}: {p:,.2f}{sufixo} ({var:+.2f}%)\n"
-            
-        msg += txt_horarios
-        st.text_area("Cópia:", msg, height=400)
+                p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+                sufixo = "pts" if "^" in ticker else ""
+                msg += f"{nome}: {p:,.2f}{sufixo} ({var:+.2f}%)\n"
+        
+        st.text_area("Cópia:", msg, height=350)
         st.link_button("📲 ENVIAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
 if btn_radar:
-    with st.spinner('Radar Cripto 24h...'):
-        dados_c = yf.download(criptos_top, period="30d", progress=False)['Close']
-        rsi_v, rsi_s = calcular_rsi(dados_c["BTC-USD"])
-        msg_r = f"🎯 *RADAR CRIPTO*\n📈 RSI BTC: {rsi_v:.2f} ({rsi_s})\n\n"
-        for c in ["BTC-USD", "ETH-USD", "SOL-USD", "ALGO-USD"]:
-            p, var = dados_c[c].iloc[-1], ((dados_c[c].iloc[-1]/dados_c[c].iloc[-2])-1)*100
-            msg_r += f"{'🟢' if var>=0 else '🔴'} {c.replace('-USD','')}: US$ {p:,.2f} ({var:+.2f}%)\n"
-        st.info("Cripto funciona 24h - Dados sempre atuais.")
-        st.text_area("Radar:", msg_r, height=200)
-        st.link_button("📲 ENVIAR RADAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_r)}", use_container_width=True)
+    with st.spinner('Mapeando Ecossistemas...'):
+        # Busca Preços e Volumes
+        tickers = list(set(todas_criptos))
+        data = yf.download(tickers, period="14d", interval="1d", progress=False)
+        precos = data['Close']
+        volumes = data['Volume'].iloc[-1]
+        
+        fng, dom = buscar_fng_e_dom()
+        rsi_v, rsi_s = calcular_rsi(precos["BTC-USD"])
+        agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
+        
+        btc_p, btc_var = precos["BTC-USD"].iloc[-1], ((precos["BTC-USD"].iloc[-1]/precos["BTC-USD"].iloc[-2])-1)*100
+        tendencia = "📈 Alta" if btc_var > 0 else "📉 Baixa"
+        
+        msg = f"📡 *PANORAMA CRIPTO & ECOSSISTEMAS* \n🕒 {agora}\n\n"
+        msg += f"📊 *Bitcoin:* US$ {btc_p:,.2f}\n🧭 Tendência: {tendencia}\n📈 RSI BTC: {rsi_v:.2f} ({rsi_s})\n🌡️ F&G: {fng} | 📉 Dom: {dom}\n\n"
+        
+        msg += "⭐ *Minhas Favoritas*\n"
+        for fav, tick in [("Algorand", "ALGO-USD"), ("Avax", "AVAX-USD"), ("XRP", "XRP-USD")]:
+            msg += f"💎 {fav}: US$ {precos[tick].iloc[-1]:,.4f}\n"
+            
+        msg += "\n🏆 *Ranking de Narrativas (Volume)*"
+        for narra, ativos in narrativas.items():
+            msg += f"\n{narra}:"
+            for i, t in enumerate(ativos, 1):
+                p, var, v_at = precos[t].iloc[-1], ((precos[t].iloc[-1]/precos[t].iloc[-2])-1)*100, volumes[t]
+                emoji = get_emoji_dinamico(var)
+                msg += f"\n {i}º {t.replace('-USD','')}: ${p:,.3f} ({var:+.2f}%){emoji}\n    ∟ Vol: {format_vol(v_at)}"
+        
+        variacoes = ((precos.iloc[-1] / precos.iloc[-2]) - 1) * 100
+        msg += f"\n\n🚀 *Top 3 Altas* ⚡"
+        for t, v in variacoes.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}%"
+        
+        msg += f"\n\n⚠️ *Top 3 Baixas* 🪫"
+        for t, v in variacoes.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}%"
+
+        st.text_area("Resultado:", msg, height=500)
+        st.link_button("📲 ENVIAR RADAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
