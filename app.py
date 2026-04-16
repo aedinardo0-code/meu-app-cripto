@@ -31,17 +31,17 @@ def format_vol(vol):
     if vol >= 1e9: return f"${vol/1e9:.1f}B"
     return f"${vol/1e6:.0f}M"
 
-# --- INTERFACE ---
-st.title("📡 Radar de Mercado")
-col1, col2 = st.columns(2)
-with col1: btn_geral = st.button('🚀 RELATÓRIO GERAL', use_container_width=True)
-with col2: btn_radar = st.button('🎯 RADAR CRIPTO', use_container_width=True)
-
-# LISTAS DE ATIVOS
-macros = {
-    "💵 Dólar": "USDBRL=X", "🛢️ Petróleo": "BZ=F", "📀 Ouro": "GC=F", "⚪ Prata": "SI=F",
-    "🇧🇷 Ibovespa": "^BVSP", "⛽ Petrobras": "PETR4.SA", "💎 Vale": "VALE3.SA", 
-    "🏦 Itaú": "ITUB4.SA", "📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F"
+# --- CONFIGURAÇÃO DE ATIVOS ---
+macros_sentimento = {
+    "🌍 DXY (Índice Dólar)": "DX-Y.NYB",
+    "🏦 Treasury 10Y": "^TNX",
+    "😱 VIX (Índice Medo)": "^VIX"
+}
+macros_eua = {"📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F"}
+macros_br = {"🇧🇷 Ibovespa": "^BVSP", "💵 Dólar Comercial": "USDBRL=X"}
+macros_commodities = {
+    "🛢️ Petróleo Brent": "BZ=F", "📀 Ouro": "GC=F", 
+    "⛽ Petrobras (PETR4)": "PETR4.SA", "💎 Vale (VALE3)": "VALE3.SA", "🏦 Itaú (ITUB4)": "ITUB4.SA"
 }
 
 narrativas = {
@@ -50,51 +50,65 @@ narrativas = {
     "🌐 Web3/L1": ["ETH-USD", "SOL-USD"],
     "🤡 Memes": ["DOGE-USD", "WIF-USD"]
 }
+favs = [("Algorand", "ALGO-USD"), ("Avax", "AVAX-USD"), ("XRP", "XRP-USD")]
+criptos_radar = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ALGO-USD", "TIA-USD", "OP-USD", "ADA-USD", "TRX-USD"] + [a for sub in narrativas.values() for a in sub]
 
-todas_criptos = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "ALGO-USD", "TIA-USD", "OP-USD", "ADA-USD", "TRX-USD"] + [a for sub in narrativas.values() for a in sub]
+# --- INTERFACE ---
+st.title("📡 Radar de Mercado")
+col1, col2 = st.columns(2)
+with col1: btn_macro = st.button('🏛️ PANORAMA MACRO', use_container_width=True)
+with col2: btn_radar = st.button('🎯 RADAR CRIPTO', use_container_width=True)
 
-# --- LÓGICA BOTÃO 1 ---
-if btn_geral:
-    with st.spinner('Gerando Panorama Global...'):
-        dados = yf.download(list(macros.values()) + ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"], period="5d", interval="1d", progress=False)['Close']
+# --- LÓGICA BOTÃO 1: MACRO ---
+if btn_macro:
+    with st.spinner('Gerando Panorama Macro...'):
+        todos_macros = {**macros_sentimento, **macros_eua, **macros_br, **macros_commodities}
+        dados = yf.download(list(todos_macros.values()), period="5d", interval="1d", progress=False)['Close']
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         
-        msg = f"📡 *PANORAMA GLOBAL \n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        msg += "🪙 *Mercado Cripto: Principais*\n"
-        for c in ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD"]:
-            p, var = dados[c].iloc[-1], ((dados[c].iloc[-1]/dados[c].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {c.replace('-USD','')}: US$ {p:,.2f} ({var:+.2f}%)\n"
+        msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         
-        msg += "\n⚒️ *Macro\n"
-        for nome, ticker in macros.items():
-            p = dados[ticker].iloc[-1]
-            if pd.isna(p):
-                msg += f"{nome}: 🔴 Fechado\n"
-            else:
-                var = ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-                sufixo = "pts" if any(x in ticker for x in ["^", "=F"]) else ""
-                msg += f"{nome}: {p:,.2f}{sufixo} ({var:+.2f}%)\n"
-        
-        st.text_area("Cópia:", msg, height=400)
-        st.link_button("📲 ENVIAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
+        msg += "🌡️ *Indicadores de Sentimento*\n"
+        for nome, ticker in macros_sentimento.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            desc = " (Força do dólar)" if "DXY" in nome else " (Custo do dinheiro)" if "Treasury" in nome else " (Volatilidade)"
+            msg += f"{nome}: {p:,.2f} ({var:+.2f}%){desc}\n"
 
-# --- LÓGICA BOTÃO 2 ---
+        msg += "\n🌎 *Mercado Americano (Wall St)*\n"
+        for nome, ticker in macros_eua.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            msg += f"{'💹' if var>=0 else '📉'} {nome.split(' ')[1]}: {p:,.2f} ({var:+.2f}%)\n"
+
+        msg += "\n🇧🇷 *Mercado Brasileiro (B3)*\n"
+        for nome, ticker in macros_br.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+        msg += "🏦 Selic: 10,75% a.a (Meta atual)\n"
+
+        msg += "\n📦 *Commodities & Blue Chips*\n"
+        for nome, ticker in macros_commodities.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            emoji = "🚀" if var >= 3.0 else "💹" if var >= 0 else "📉"
+            msg += f"{emoji} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+        
+        st.text_area("Cópia Macro:", msg, height=450)
+        st.link_button("📲 ENVIAR MACRO", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
+
+# --- LÓGICA BOTÃO 2: CRIPTO ---
 if btn_radar:
     with st.spinner('Mapeando Ecossistemas...'):
-        data = yf.download(todas_criptos, period="14d", interval="1d", progress=False)
-        precos = data['Close']
-        volumes = data['Volume'].iloc[-1]
+        data = yf.download(criptos_radar, period="14d", interval="1d", progress=False)
+        precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         
         rsi_v, rsi_s = calcular_rsi(precos["BTC-USD"])
         btc_p, btc_var = precos["BTC-USD"].iloc[-1], ((precos["BTC-USD"].iloc[-1]/precos["BTC-USD"].iloc[-2])-1)*100
         
-        msg = f"📡 *PANORAMA CRIPTO & ECOSSISTEMAS* \n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
+        msg = f"📡 *PANORAMA CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         msg += f"📊 *Bitcoin:* US$ {btc_p:,.2f}\n🧭 Tendência: {'💹 Alta' if btc_var > 0 else '📉 Baixa'}\n📈 RSI BTC: {rsi_v:.2f} ({rsi_s})\nDominância 🍕 {buscar_dominancia()}\n\n"
         
         msg += "⭐ *Minhas Favoritas*\n"
-        for fav, tk in [("Algorand", "ALGO-USD"), ("Avax", "AVAX-USD"), ("XRP", "XRP-USD")]:
-            msg += f"💎 {fav}: US$ {precos[tk].iloc[-1]:,.4f}\n"
+        for nome, tk in favs: msg += f"💎 {nome}: US$ {precos[tk].iloc[-1]:,.4f}\n"
             
         msg += "\n🏆 *Ranking de Narrativas (Volume)*"
         for narra, ativos in narrativas.items():
@@ -108,7 +122,7 @@ if btn_radar:
         msg += f"\n\n🚀 *Top 3 Altas* ⚡"
         for t, v in variacoes.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}% ⚡"
         
-        msg += f"\n\n⚠️ *Top 3 Baixas"
+        msg += f"\n\n⚠️ *Top 3 Baixas*"
         for t, v in variacoes.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}% 🪫"
 
         st.text_area("Cópia Radar:", msg, height=500)
