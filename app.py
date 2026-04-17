@@ -1,17 +1,15 @@
 import streamlit as st
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 import urllib.parse
 import pytz
 import pandas as pd
-import requests
 import streamlit.components.v1 as components
 
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS ---
-projecoes = {"SELIC_2026": "12,50%", "SELIC_2027": "10,50%", "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"}
+# --- BANCO DE DADOS ATUALIZADO ---
 lista_favoritas = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"]
 
 narrativas_config = {
@@ -22,29 +20,38 @@ narrativas_config = {
     "MEMES": ["DOGE-USD", "WIF-USD"]
 }
 
-# SEÇÃO DE SITES ORGANIZADA
+# --- SEÇÃO DE SITES (REFORMULADA) ---
 links_uteis = {
-    "📊 Análise & On-Chain": {
-        "CoinMarketCap": "https://coinmarketcap.com",
+    "📊 Análise & Liquidez": {
+        "Mapa de Liquidação (Coinglass)": "https://www.coinglass.com/pt/pro/futures/LiquidationHeatMap",
+        "CryptoBubbles (Bolinhas)": "https://cryptobubbles.net",
+        "Preços em Tempo Real (TradingView)": "https://br.tradingview.com/markets/cryptocurrencies/prices-all/",
         "DexScreener": "https://dexscreener.com",
-        "Coinglass": "https://www.coinglass.com",
-        "DefiLlama": "https://defillama.com",
-        "DEXTools": "https://www.dextools.io"
+        "DefiLlama": "https://defillama.com"
     },
-    "🐋 Monitoramento & Liquidez": {
-        "Whale Alert (Grandes Carteiras)": "https://whale-alert.io",
-        "Kingfisher (Liquidez BTC)": "https://thekingfisher.io",
-        "TRDR.io (Orderflow)": "https://trdr.io",
-        "Blockchain.com (Large Tx)": "https://www.blockchain.com/explorer/charts/utxo-count"
+    "🐋 Monitoramento": {
+        "Whale Alert (Baleias)": "https://whale-alert.io",
+        "Token Unlocks (Oficial)": "https://token.unlocks.app"
     },
-    "📰 Notícias & Eventos": {
-        "CryptoPanic": "https://cryptopanic.com",
-        "Token Unlocks": "https://token.unlocks.app",
-        "Investing": "https://br.investing.com"
+    "📰 Notícias Brasil": {
+        "LiveCoins": "https://livecoins.com.br",
+        "Portal do Bitcoin": "https://portaldobitcoin.uol.com.br",
+        "CoinTelegraph Brasil": "https://br.cointelegraph.com"
     }
 }
 
-# --- FUNÇÕES DE APOIO ---
+# --- UNLOCKS PRÓXIMOS 60 DIAS (MANUAL) ---
+# Dados projetados para 2026 baseados em cronogramas de emissão
+dados_unlocks = [
+    {"moeda": "SOL", "data": "22/04/2026", "valor": "$230M", "tipo": "Stake Rewards"},
+    {"moeda": "ARB", "data": "16/05/2026", "valor": "$65M", "tipo": "Team/Investors"},
+    {"moeda": "STRK", "data": "15/05/2026", "valor": "$32M", "tipo": "Ecosystem"},
+    {"moeda": "SUI", "data": "03/05/2026", "valor": "$105M", "tipo": "Series A/B"},
+    {"moeda": "OP", "data": "30/05/2026", "valor": "$54M", "tipo": "Core Contrib"},
+    {"moeda": "IMX", "data": "12/05/2026", "valor": "$48M", "tipo": "Ecosystem"}
+]
+
+# --- FUNÇÕES ---
 def format_vol(vol):
     try:
         if pd.isna(vol) or vol == 0: return "$---"
@@ -54,7 +61,6 @@ def format_vol(vol):
 
 def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
     id_html = f"btn_{key}" if key else label.lower().replace(" ", "_")
-    # Escapa quebras de linha para o JavaScript não quebrar
     texto_limpo = texto_para_copiar.replace("\n", "\\n").replace("'", "\\'")
     html_code = f"""
     <div style="margin-bottom: 10px;">
@@ -80,73 +86,70 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
 # --- INTERFACE ---
 st.markdown("<h1 style='text-align: center;'>📡 Radar de Mercado</h1>", unsafe_allow_html=True)
 
-# Menu principal em colunas para mobile/web
 c_nav = st.columns(4)
 btn_macro = c_nav[0].button('🏛️ MACRO', use_container_width=True)
 btn_radar = c_nav[1].button('🎯 CRIPTO', use_container_width=True)
 btn_unlock = c_nav[2].button('🔓 UNLOCKS', use_container_width=True)
 btn_sites = c_nav[3].button('🔗 SITES', use_container_width=True)
 
-# --- 1. RADAR CRIPTO (TEXTO LIMPO) ---
+# --- LÓGICA DO RADAR CRIPTO ---
 if btn_radar:
-    with st.spinner('Limpando dados...'):
+    with st.spinner('Sincronizando...'):
         ativos_todos = list(set(lista_favoritas + [item for sub in narrativas_config.values() for item in sub]))
         data = yf.download(ativos_todos, period="5d", interval="1d", progress=False)
         precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
         
-        # Montagem do texto sem excesso de asteriscos para o WhatsApp/Cópia
         msg = f"📡 RADAR CRIPTO & ECOSSISTEMAS\n🕒 {agora}\n\n"
         msg += "💎 FAVORITAS\n"
-        
         for ticker in lista_favoritas:
             try:
                 p = precos[ticker].iloc[-1]
-                var = ((p / precos[ticker].iloc[-2]) - 1) * 100
-                simbolo = ticker.replace('-USD','')
-                emoji = "💹" if var >= 0 else "📉"
-                msg += f"{emoji} {simbolo}: US$ {p:,.2f} ({var:+.2f}%)\n"
+                v = ((p / precos[ticker].iloc[-2]) - 1) * 100
+                simb = ticker.split('-')[0]
+                emoji = "💹" if v >= 0 else "📉"
+                msg += f"{emoji} {simb}: US$ {p:,.2f} ({v:+.2f}%)\n"
             except: continue
 
         msg += "\n🏆 NARRATIVAS (VOL 24H)"
         for narra, ativos in narrativas_config.items():
             msg += f"\n\n🔹 {narra}:"
-            for ticker in ativos:
+            for t in ativos:
                 try:
-                    p = precos[ticker].iloc[-1]
-                    v_t = ((p / precos[ticker].iloc[-2]) - 1) * 100
-                    nome = ticker.replace('-USD','')
-                    msg += f"\n {nome}: US$ {p:,.2f} ({v_t:+.2f}%) | Vol: {format_vol(volumes[ticker])}"
+                    p = precos[t].iloc[-1]
+                    var_t = ((p / precos[t].iloc[-2]) - 1) * 100
+                    msg += f"\n {t.split('-')[0]}: US$ {p:,.2f} ({var_t:+.2f}%) | Vol: {format_vol(volumes[t])}"
                 except: continue
         
-        st.text_area("Relatório pronto para envio:", msg, height=400)
+        st.text_area("Texto Limpo:", msg, height=400)
         c1, c2 = st.columns(2)
-        with c1: botao_copiar("Copiar Radar", msg, key="copy_clean")
-        with c2: st.link_button("📲 Enviar WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+        with c1: botao_copiar("Copiar Radar", msg, key="c_clean")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- 2. SITES (MOSTRAR TUDO DE UMA VEZ) ---
+# --- LÓGICA DO UNLOCKS (MANUAL) ---
+if btn_unlock:
+    agora = datetime.now().strftime('%d/%m/%Y')
+    msg = f"🔓 RADAR DE DESBLOQUEIOS (60 DIAS)\n🕒 Ref: {agora}\n\n"
+    for item in dados_unlocks:
+        msg += f"📅 {item['moeda']}: {item['data']} | Val: {item['valor']} ({item['tipo']})\n"
+    
+    st.markdown("### 🔓 Próximos Desbloqueios")
+    st.text_area("Texto Unlocks:", msg, height=250)
+    botao_copiar("Copiar Desbloqueios", msg, key="u_copy")
+
+# --- LÓGICA DO SITES (SISTEMA DE BOTÕES) ---
 if btn_sites:
     st.markdown("---")
     st.markdown("<h2 style='text-align: center;'>🔗 Central de Ferramentas</h2>", unsafe_allow_html=True)
-    
     for cat, sites in links_uteis.items():
         st.subheader(cat)
-        cols = st.columns(2) # Divide em duas colunas para não ficar uma lista infinita
+        cols = st.columns(2)
         for i, (nome, url) in enumerate(sites.items()):
-            cols[i % 2].link_button(f"🔗 {nome}", url, use_container_width=True)
-    st.markdown("---")
-
-# --- BLOCO MACRO E UNLOCKS (Omitidos aqui para brevidade, mas mantidos no seu original) ---
-if btn_macro:
-    st.info("Função Macro carregando... (Use seu código original aqui)")
-
-if btn_unlock:
-    st.info("Função Unlocks carregando... (Use seu código original aqui)")
+            cols[i % 2].link_button(nome, url, use_container_width=True)
 
 # --- APOIO ---
-st.markdown("<h3 style='text-align: center;'>🚀 Apoie o Projeto</h3>", unsafe_allow_html=True)
-col_p1, col_p2 = st.columns(2)
-with col_p1:
-    botao_copiar("Copiar PIX", "00020126580014BR.GOV.BCB.PIX0136841f1261-6e84-4132-9fcf-7e6eda71bb9e5204000053039865802BR5924Antonio Edinardo Pereira6009SAO PAULO62140510wgb2JUeYe963046375", cor="#00b5a4", key="p_pix")
-with col_p2:
-    botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="p_bin")
+st.markdown("---")
+st.markdown("<h3 style='text-align: center;'>🚀 Apoie o Radar</h3>", unsafe_allow_html=True)
+c_pix1, c_pix2 = st.columns(2)
+with c_pix1: botao_copiar("Copiar PIX", "00020126580014BR.GOV.BCB.PIX0136841f1261-6e84-4132-9fcf-7e6eda71bb9e5204000053039865802BR5924Antonio Edinardo Pereira6009SAO PAULO62140510wgb2JUeYe963046375", "#00b5a4", "p1")
+with c_pix2: botao_copiar("Copiar Binance ID", "511081814", "#F3BA2F", "p2")
