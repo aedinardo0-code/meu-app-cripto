@@ -12,10 +12,8 @@ st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide
 
 # --- BANCO DE DADOS DE PROJEÇÕES ---
 projecoes = {
-    "SELIC_2026": "12,50%",
-    "SELIC_2027": "10,50%",
-    "FED_PROJ_2026": "3,40%",
-    "FED_PROJ_2027": "3,10%"
+    "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
+    "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
 }
 
 # --- FUNÇÕES DE APOIO ---
@@ -24,6 +22,18 @@ def buscar_dominancia():
         r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
         return f"{r['data']['market_cap_percentage']['btc']:.1f}%"
     except: return "57.2%"
+
+def buscar_top_100_coingecko():
+    try:
+        # Busca as top 100 moedas reais por market cap
+        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h"
+        data = requests.get(url, timeout=10).json()
+        df = pd.DataFrame(data)
+        altas = df.nlargest(3, 'price_change_percentage_24h')
+        baixas = df.nsmallest(3, 'price_change_percentage_24h')
+        return altas, baixas
+    except:
+        return None, None
 
 def format_vol(vol):
     try:
@@ -75,20 +85,6 @@ narrativas_config = {
     "🤡 Memes": ["DOGE-USD", "WIF-USD"]
 }
 
-top_100_tickers = ["BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "XRP-USD", "ADA-USD", "AVAX-USD", "DOGE-USD", "SHIB-USD", "DOT-USD", "LINK-USD", "TRX-USD", "MATIC-USD", "NEAR-USD", "UNI-USD", "LTC-USD", "ICP-USD", "PEPE-USD", "BCH-USD", "RENDER-USD", "FIL-USD", "ARB-USD", "APT-USD", "STX-USD", "OP-USD", "TIA-USD", "FET-USD", "ONDO-USD", "WIF-USD", "HNT-USD"]
-
-links_uteis = {
-    "📰 Notícias Cripto": {
-        "Portal do Bitcoin (BR)": "https://portaldobitcoin.uol.com.br/", "Livecoins (BR)": "https://livecoins.com.br/", "CoinTelegraph (Global)": "https://cointelegraph.com/"
-    },
-    "📊 Ferramentas de Análise": {
-        "CME FedWatch (Juros)": "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html", "CryptoBubbles": "https://cryptobubbles.net/", "CoinGlass": "https://www.coinglass.com/pt", "Kingfisher": "https://thekingfisher.io/"
-    },
-    "💰 Preços e Liquidez": {
-        "CoinMarketCap": "https://coinmarketcap.com/", "DexScreener": "https://dexscreener.com/", "Whale Alert": "https://whale-alert.io/"
-    }
-}
-
 # --- INTERFACE ---
 st.title("📡 Radar de Mercado")
 c1, c2, c3, c4 = st.columns(4)
@@ -115,7 +111,6 @@ if btn_macro:
             var = ((p/dados[ticker].iloc[-2])-1)*100
             msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
         msg += f"🏛️ Projeção SELIC: 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}\n"
-        
         st.text_area("Texto do Relatório:", msg, height=300)
         col_m1, col_m2 = st.columns(2)
         with col_m1: botao_copiar("Copiar Relatório", msg, key="macro_copy")
@@ -123,14 +118,16 @@ if btn_macro:
 
 # --- BOTÃO 2: CRIPTO ---
 if btn_radar:
-    with st.spinner('Analisando Top 100...'):
-        all_assets = list(set(top_100_tickers + [item for sublist in narrativas_config.values() for item in sublist]))
-        data = yf.download(all_assets, period="5d", interval="1d", progress=False)
-        precos, volumes = data['Close'], data['Volume'].iloc[-1]
+    with st.spinner('Buscando dados Reais do Top 100...'):
+        assets_narra = [item for sublist in narrativas_config.values() for item in sublist] + ["BTC-USD"]
+        data_yf = yf.download(assets_narra, period="5d", interval="1d", progress=False)
+        precos, volumes = data_yf['Close'], data_yf['Volume'].iloc[-1]
+        altas_cg, baixas_cg = buscar_top_100_coingecko()
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         
         msg = f"📡 *RADAR CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
         msg += f"📊 *Bitcoin:* US$ {precos['BTC-USD'].iloc[-1]:,.2f} ({((precos['BTC-USD'].iloc[-1]/precos['BTC-USD'].iloc[-2])-1)*100:+.2f}%)\n🍕 Dom: {buscar_dominancia()}\n\n"
+        
         msg += "🏆 *Narrativas (Volume)*"
         for narra, ativos in narrativas_config.items():
             msg += f"\n\n*{narra}:*"
@@ -138,13 +135,15 @@ if btn_radar:
                 p, var_t = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
                 msg += f"\n {i+1}º {ticker.replace('-USD','')}: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
         
-        var_global = ((precos[top_100_tickers].iloc[-1] / precos[top_100_tickers].iloc[-2]) - 1) * 100
-        msg += "\n\n🚀 *TOP 3 ALTAS GLOBAL* ⚡"
-        for t, v in var_global.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}% ⚡"
-        msg += "\n\n⚠️ *TOP 3 BAIXAS GLOBAL* 🪫"
-        for t, v in var_global.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}% 🪫"
+        if altas_cg is not None:
+            msg += "\n\n🚀 *TOP 3 ALTAS GLOBAL (Top 100)* ⚡"
+            for _, row in altas_cg.iterrows():
+                msg += f"\n🟩 {row['symbol'].upper()}: {row['price_change_percentage_24h']:+.2f}% ⚡"
+            msg += "\n\n⚠️ *TOP 3 BAIXAS GLOBAL (Top 100)* 🪫"
+            for _, row in baixas_cg.iterrows():
+                msg += f"\n🟥 {row['symbol'].upper()}: {row['price_change_percentage_24h']:+.2f}% 🪫"
         
-        st.text_area("Texto do Radar:", msg, height=300)
+        st.text_area("Texto do Radar:", msg, height=500)
         col_c1, col_c2 = st.columns(2)
         with col_c1: botao_copiar("Copiar Radar", msg, key="cripto_copy")
         with col_c2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
@@ -158,7 +157,6 @@ if btn_unlock:
         dt = datetime.strptime(i['d'], "%Y-%m-%d").date()
         faltam = (dt - hoje).days
         msg += f"{'🚨' if faltam <= 7 else '📅'} *{i['m']}*: {dt.strftime('%d/%m/%Y')}\n   ∟ Faltam: {faltam} dias | Qtd: {i['q']}\n\n"
-    
     st.text_area("Texto Unlocks:", msg, height=250)
     col_u1, col_u2 = st.columns(2)
     with col_u1: botao_copiar("Copiar Unlocks", msg, key="unlock_copy")
