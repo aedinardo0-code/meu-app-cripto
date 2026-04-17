@@ -32,16 +32,16 @@ def format_vol(vol):
         return f"${vol/1e6:.0f}M"
     except: return "$---"
 
-def botao_copiar(label, texto_para_copiar, cor="#FF4B4B"):
-    id_html = label.lower().replace(" ", "_")
+def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
+    id_html = f"btn_{key}" if key else label.lower().replace(" ", "_")
     html_code = f"""
     <div style="margin-bottom: 10px;">
-        <button id="btn_{id_html}" style="width: 100%; background-color: {cor}; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s;">
+        <button id="{id_html}" style="width: 100%; background-color: {cor}; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s;">
             📋 {label}
         </button>
     </div>
     <script>
-    document.getElementById('btn_{id_html}').addEventListener('click', function() {{
+    document.getElementById('{id_html}').addEventListener('click', function() {{
         const text = `{texto_para_copiar}`;
         const el = document.createElement('textarea');
         el.value = text;
@@ -49,7 +49,7 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B"):
         el.select();
         document.execCommand('copy');
         document.body.removeChild(el);
-        const btn = document.getElementById('btn_{id_html}');
+        const btn = document.getElementById('{id_html}');
         const originalText = btn.innerText;
         btn.innerText = '✅ COPIADO!';
         btn.style.backgroundColor = '#28a745';
@@ -75,33 +75,17 @@ narrativas_config = {
     "🤡 Memes": ["DOGE-USD", "WIF-USD"]
 }
 
-# Lista estática das 100 maiores para garantir o Top 3 Global
-top_100_tickers = [
-    "BTC-USD", "ETH-USD", "USDT-USD", "BNB-USD", "SOL-USD", "XRP-USD", "USDC-USD", "ADA-USD", "STETH-USD", "AVAX-USD",
-    "DOGE-USD", "SHIB-USD", "DOT-USD", "LINK-USD", "TRX-USD", "MATIC-USD", "WBTC-USD", "NEAR-USD", "UNI-USD", "LTC-USD",
-    "DAI-USD", "ICP-USD", "PEPE-USD", "BCH-USD", "ETC-USD", "RENDER-USD", "FIL-USD", "OKB-USD", "ARB-USD", "APT-USD",
-    "HBAR-USD", "IMX-USD", "WHBAR-USD", "KAS-USD", "STX-USD", "OP-USD", "TIA-USD", "GRT-USD", "THETA-USD", "FET-USD",
-    "ONDO-USD", "WIF-USD", "FLOKI-USD", "HNT-USD", "BONK-USD", "SUI-USD", "AAVE-USD", "GALA-USD", "LDO-USD", "CORE-USD"
-    # Adicione mais conforme desejar para completar as 100
-]
+top_100_tickers = ["BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "XRP-USD", "ADA-USD", "AVAX-USD", "DOGE-USD", "SHIB-USD", "DOT-USD", "LINK-USD", "TRX-USD", "MATIC-USD", "NEAR-USD", "UNI-USD", "LTC-USD", "ICP-USD", "PEPE-USD", "BCH-USD", "RENDER-USD", "FIL-USD", "ARB-USD", "APT-USD", "STX-USD", "OP-USD", "TIA-USD", "FET-USD", "ONDO-USD", "WIF-USD", "HNT-USD"]
 
 links_uteis = {
     "📰 Notícias Cripto": {
-        "Portal do Bitcoin (BR)": "https://portaldobitcoin.uol.com.br/",
-        "Livecoins (BR)": "https://livecoins.com.br/",
-        "CoinTelegraph (Global)": "https://cointelegraph.com/"
+        "Portal do Bitcoin (BR)": "https://portaldobitcoin.uol.com.br/", "Livecoins (BR)": "https://livecoins.com.br/", "CoinTelegraph (Global)": "https://cointelegraph.com/"
     },
     "📊 Ferramentas de Análise": {
-        "CME FedWatch (Juros EUA)": "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html",
-        "CryptoBubbles (Visualização)": "https://cryptobubbles.net/",
-        "CoinGlass (Liquidez & Liquidações)": "https://www.coinglass.com/pt",
-        "DefiLlama (Dados DeFi/RWA)": "https://defillama.com/",
-        "Kingfisher (Mapas de Liquidez)": "https://thekingfisher.io/"
+        "CME FedWatch (Juros)": "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html", "CryptoBubbles": "https://cryptobubbles.net/", "CoinGlass": "https://www.coinglass.com/pt", "Kingfisher": "https://thekingfisher.io/"
     },
     "💰 Preços e Liquidez": {
-        "CoinMarketCap": "https://coinmarketcap.com/",
-        "DexScreener (Moedas Novas)": "https://dexscreener.com/",
-        "Whale Alert (Baleias)": "https://whale-alert.io/"
+        "CoinMarketCap": "https://coinmarketcap.com/", "DexScreener": "https://dexscreener.com/", "Whale Alert": "https://whale-alert.io/"
     }
 }
 
@@ -124,59 +108,65 @@ if btn_macro:
             p = dados[ticker].iloc[-1]
             var = ((p/dados[ticker].iloc[-2])-1)*100
             msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-        msg += f"🏛️ Projeção FED (Dot Plot): 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n\n"
+        msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n\n"
         msg += "🇧🇷 *MERCADO BRASIL (B3)*\n"
         for nome, ticker in list(macros_tickers.items())[6:]:
             p = dados[ticker].iloc[-1]
             var = ((p/dados[ticker].iloc[-2])-1)*100
             msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-        msg += f"🏛️ Projeção SELIC (Focus): 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}\n"
-        st.text_area("Copiar Relatório Macro:", msg, height=400)
+        msg += f"🏛️ Projeção SELIC: 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}\n"
+        
+        st.text_area("Texto do Relatório:", msg, height=300)
+        col_m1, col_m2 = st.columns(2)
+        with col_m1: botao_copiar("Copiar Relatório", msg, key="macro_copy")
+        with col_m2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
 # --- BOTÃO 2: CRIPTO ---
 if btn_radar:
-    with st.spinner('Analisando Top 100 & Narrativas...'):
-        # Puxa dados de todas as moedas de uma vez para ganhar velocidade
+    with st.spinner('Analisando Top 100...'):
         all_assets = list(set(top_100_tickers + [item for sublist in narrativas_config.values() for item in sublist]))
         data = yf.download(all_assets, period="5d", interval="1d", progress=False)
-        precos = data['Close']
-        volumes = data['Volume'].iloc[-1]
+        precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         
         msg = f"📡 *RADAR CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        msg += f"📊 *Market Leader: Bitcoin*\n💵 US$ {precos['BTC-USD'].iloc[-1]:,.2f} ({((precos['BTC-USD'].iloc[-1]/precos['BTC-USD'].iloc[-2])-1)*100:+.2f}%)\n🍕 Dom: {buscar_dominancia()}\n\n"
-        
-        msg += "🏆 *Ranking de Narrativas (Volume)*"
+        msg += f"📊 *Bitcoin:* US$ {precos['BTC-USD'].iloc[-1]:,.2f} ({((precos['BTC-USD'].iloc[-1]/precos['BTC-USD'].iloc[-2])-1)*100:+.2f}%)\n🍕 Dom: {buscar_dominancia()}\n\n"
+        msg += "🏆 *Narrativas (Volume)*"
         for narra, ativos in narrativas_config.items():
             msg += f"\n\n*{narra}:*"
             for i, ticker in enumerate(ativos):
-                p = precos[ticker].iloc[-1]
-                var_t = ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
+                p, var_t = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
                 msg += f"\n {i+1}º {ticker.replace('-USD','')}: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
         
-        # Lógica Top 3 Global (Entre as 100 maiores)
-        variacoes_global = ((precos[top_100_tickers].iloc[-1] / precos[top_100_tickers].iloc[-2]) - 1) * 100
-        msg += "\n\n🚀 *TOP 3 ALTAS GLOBAL (Top 100)* ⚡"
-        for t, v in variacoes_global.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}% ⚡"
-        msg += "\n\n⚠️ *TOP 3 BAIXAS GLOBAL (Top 100)* 🪫"
-        for t, v in variacoes_global.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}% 🪫"
-        st.text_area("Copiar Radar Cripto:", msg, height=500)
+        var_global = ((precos[top_100_tickers].iloc[-1] / precos[top_100_tickers].iloc[-2]) - 1) * 100
+        msg += "\n\n🚀 *TOP 3 ALTAS GLOBAL* ⚡"
+        for t, v in var_global.nlargest(3).items(): msg += f"\n🟩 {t.replace('-USD','')}: {v:+.2f}% ⚡"
+        msg += "\n\n⚠️ *TOP 3 BAIXAS GLOBAL* 🪫"
+        for t, v in var_global.nsmallest(3).items(): msg += f"\n🟥 {t.replace('-USD','')}: {v:+.2f}% 🪫"
+        
+        st.text_area("Texto do Radar:", msg, height=300)
+        col_c1, col_c2 = st.columns(2)
+        with col_c1: botao_copiar("Copiar Radar", msg, key="cripto_copy")
+        with col_c2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
 # --- BOTÃO 3: UNLOCKS ---
 if btn_unlock:
     hoje = datetime.now().date()
-    # Dados de exemplo (No seu código real, você pode alimentar isso via API ou manual)
     dados_unlock = [{"m": "ARB", "d": "2026-04-20", "q": "92M"}, {"m": "OP", "d": "2026-04-29", "q": "31M"}, {"m": "SUI", "d": "2026-05-03", "q": "34M"}]
-    msg = f"🔓 *RADAR DE DESBLOQUEIOS (40 DIAS)*\n🕒 {hoje.strftime('%d/%m/%Y')}\n\n"
+    msg = f"🔓 *RADAR DE DESBLOQUEIOS (40D)*\n🕒 {hoje.strftime('%d/%m/%Y')}\n\n"
     for i in dados_unlock:
         dt = datetime.strptime(i['d'], "%Y-%m-%d").date()
         faltam = (dt - hoje).days
         msg += f"{'🚨' if faltam <= 7 else '📅'} *{i['m']}*: {dt.strftime('%d/%m/%Y')}\n   ∟ Faltam: {faltam} dias | Qtd: {i['q']}\n\n"
-    st.text_area("Copiar Agenda de Unlocks:", msg, height=300)
+    
+    st.text_area("Texto Unlocks:", msg, height=250)
+    col_u1, col_u2 = st.columns(2)
+    with col_u1: botao_copiar("Copiar Unlocks", msg, key="unlock_copy")
+    with col_u2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
 # --- BOTÃO 4: SITES ---
 if btn_sites:
-    st.subheader("🔗 Central de Ferramentas & Notícias")
+    st.subheader("🔗 Central de Ferramentas")
     c_l1, c_l2 = st.columns(2)
     for i, (cat, sites) in enumerate(links_uteis.items()):
         with (c_l1 if i % 2 == 0 else c_l2):
@@ -187,5 +177,5 @@ if btn_sites:
 st.markdown("---")
 st.subheader("🚀 Apoie o Projeto")
 cp1, cp2 = st.columns(2)
-with cp1: botao_copiar("Copiar PIX", "SUA_CHAVE_PIX", cor="#00b5a4")
-with cp2: botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F")
+with cp1: botao_copiar("Copiar PIX", "SUA_CHAVE_PIX", cor="#00b5a4", key="pix_main")
+with cp2: botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="binance_main")
