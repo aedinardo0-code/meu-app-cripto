@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Radar de Mercado", page_icon="📈", layout="wide")
 
-# --- FUNÇÕES DE APOIO ---
+# --- FUNÇÕES DE APOIO (CORRIGIDAS) ---
 def buscar_dominancia():
     try:
         r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
@@ -18,19 +18,24 @@ def buscar_dominancia():
 
 def calcular_rsi(serie, periodo=14):
     try:
+        if serie.isnull().all() or len(serie) < periodo: return 0, "⚪ Neutro"
         delta = serie.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=periodo).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=periodo).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs))
         val = rsi.iloc[-1]
+        if pd.isna(val): return 0, "⚪ Neutro"
         status = "🔴 Sobrecompra" if val >= 70 else "🟢 Sobrevenda" if val <= 30 else "⚪ Neutro"
         return val, status
-    except: return 0, "Erro"
+    except: return 0, "⚪ Neutro"
 
 def format_vol(vol):
-    if vol >= 1e9: return f"${vol/1e9:.1f}B"
-    return f"${vol/1e6:.0f}M"
+    try:
+        if pd.isna(vol) or vol == 0: return "$---"
+        if vol >= 1e9: return f"${vol/1e9:.1f}B"
+        return f"${vol/1e6:.0f}M"
+    except: return "$---"
 
 def botao_copiar(label, texto_para_copiar, cor="#FF4B4B"):
     id_html = label.lower().replace(" ", "_")
@@ -65,24 +70,18 @@ macros_eua = {"📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq
 macros_br = {"🇧🇷 Ibovespa": "^BVSP", "💵 Dólar Comercial": "USDBRL=X"}
 macros_commodities = {"🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"}
 
-# Narrativas Expandidas (1º e 2º lugar)
+# Narrativas conforme solicitado (Sem L2, DeSci e GameFi)
 narrativas = {
     "🤖 IA": ["NEAR-USD", "FET-USD"],
     "🏢 RWA": ["LINK-USD", "ONDO-USD"],
     "🌐 Web3/L1": ["ETH-USD", "SOL-USD"],
     "🤡 Memes": ["DOGE-USD", "WIF-USD"],
-    "📡 DePIN": ["RENDER-USD", "HNT-USD"],
-    "🎮 GameFi": ["IMX-USD", "GALA-USD"],
-    "🧬 DeSci": ["VITA-USD", "RSC-USD"],
-    "⚡ L2s": ["ARB-USD", "OP-USD"]
+    "📡 DePIN": ["RENDER-USD", "HNT-USD"]
 }
 
-# Lista estendida para monitorar o Top 100 real
 top_100_tickers = [
     "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD",
-    "MATIC-USD", "SHIB-USD", "TRX-USD", "LTC-USD", "BCH-USD", "UNI-USD", "NEAR-USD", "APT-USD", "TIA-USD", "FET-USD",
-    "ONDO-USD", "WIF-USD", "STX-USD", "FIL-USD", "ARB-USD", "OP-USD", "RENDER-USD", "HNT-USD", "IMX-USD", "GALA-USD",
-    "LDO-USD", "SUI-USD", "STRK-USD", "BEAM-USD", "PEPE-USD", "BONK-USD", "VITA-USD", "RSC-USD"
+    "TRX-USD", "NEAR-USD", "TIA-USD", "FET-USD", "ONDO-USD", "WIF-USD", "RENDER-USD", "HNT-USD", "PEPE-USD", "BONK-USD", "SHIB-USD"
 ]
 
 # --- INTERFACE ---
@@ -107,9 +106,9 @@ if btn_macro:
         st.text_area("Cópia Macro:", msg, height=400)
         st.link_button("📲 ENVIAR MACRO", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
 
-# --- BOTÃO 2: CRIPTO (ATUALIZADO COM 8 NARRATIVAS) ---
+# --- BOTÃO 2: CRIPTO (PERSONALIZADO) ---
 if btn_radar:
-    with st.spinner('Analisando Narrativas...'):
+    with st.spinner('Sincronizando...'):
         data = yf.download(top_100_tickers, period="5d", interval="1d", progress=False)
         precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
@@ -124,17 +123,13 @@ if btn_radar:
         
         msg += "🏆 *Narrativas & Fluxo de Volume*"
         for narra, ativos in narrativas.items():
-            # Tenta pegar a variação do primeiro ativo da categoria para o emoji principal
             try:
-                v_cat = ((precos[ativos[0]].iloc[-1]/precos[ativos[0]].iloc[-2])-1)*100
-                emoji_cat = "💹" if v_cat >= 0 else "📉"
-                msg += f"\n{emoji_cat} *{narra}:*"
+                msg += f"\n*{narra}:*"
                 for i, ticker in enumerate(ativos):
                     if ticker in precos.columns:
                         p = precos[ticker].iloc[-1]
-                        v = ((p/precos[ticker].iloc[-2])-1)*100
                         vol = format_vol(volumes[ticker])
-                        msg += f"\n {i+1}º {ticker.replace('-USD','')}: {v:+.2f}% | Vol: {vol}"
+                        msg += f"\n {i+1}º {ticker.replace('-USD','')}: US$ {p:,.2f} | Vol: {vol}"
                 msg += "\n"
             except: continue
         
@@ -150,9 +145,9 @@ if btn_radar:
         st.text_area("Cópia Radar:", msg, height=600)
         st.link_button("📲 ENVIAR RADAR", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
 
-# --- BOTÃO 3: UNLOCKS (MANTIDO) ---
+# --- BOTÃO 3: UNLOCKS ---
 if btn_unlock:
-    with st.spinner('Verificando Vesting...'):
+    with st.spinner('Consultando Vesting...'):
         hoje = datetime.now().date()
         dados_reais = [
             {"m": "AXS", "d": datetime(2026, 4, 17).date(), "q": "6.08M", "i": "⚠️ Médio"},
