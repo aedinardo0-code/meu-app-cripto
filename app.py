@@ -10,16 +10,8 @@ import streamlit.components.v1 as components
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS E CONFIGURAÇÕES ---
-projecoes = {
-    "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
-    "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
-}
-
-lista_favoritas = [
-    "BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", 
-    "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"
-]
+# --- CONFIGURAÇÕES DE ATIVOS ---
+lista_favoritas = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"]
 
 narrativas_config = {
     "🤖 IA": ["NEAR-USD", "FET-USD"],
@@ -43,8 +35,7 @@ def buscar_dominancias():
         btc = f"{r['data']['market_cap_percentage']['btc']:.1f}%"
         eth = f"{r['data']['market_cap_percentage']['eth']:.1f}%"
         return btc, eth
-    except:
-        return "57.4%", "17.2%"
+    except: return "57.4%", "17.2%"
 
 def format_vol(vol):
     try:
@@ -79,55 +70,68 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
     """
     return components.html(html_code, height=70)
 
-# --- INTERFACE PRINCIPAL ---
+# --- INTERFACE ---
 st.title("📡 Radar de Mercado")
-c1, c2, c3, c4 = st.columns(4)
-with c1: btn_macro = st.button('🏛️ MACRO', use_container_width=True)
-with c2: btn_radar = st.button('🎯 CRIPTO', use_container_width=True)
-with c3: btn_unlock = st.button('🔓 UNLOCKS', use_container_width=True)
-with c4: btn_sites = st.button('🔗 SITES', use_container_width=True)
 
-# --- LÓGICA DO BOTÃO 2: CRIPTO ---
+# Botões em lista conforme sua imagem
+btn_macro = st.button('🏛️ MACRO', use_container_width=True)
+btn_radar = st.button('🎯 CRIPTO', use_container_width=True)
+btn_unlock = st.button('🔓 UNLOCKS', use_container_width=True)
+btn_sites = st.button('🔗 SITES', use_container_width=True)
+
+# --- LÓGICA BOTÃO CRIPTO (ATUALIZADA) ---
 if btn_radar:
-    with st.spinner('Sincronizando Mercado...'):
+    with st.spinner('Sincronizando Favoritas...'):
         ativos_narrativas = [item for sublist in narrativas_config.values() for item in sublist]
         todos_ativos = list(set(lista_favoritas + ativos_narrativas))
-        
         data = yf.download(todos_ativos, period="5d", interval="1d", progress=False)
         precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         dom_btc, dom_eth = buscar_dominancias()
         
         msg = f"📡 *RADAR CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        
-        msg += "💎 *FAVORITAS*"
+        msg += "💎 *FAVORITAS*\n"
         for ticker in lista_favoritas:
-            p = precos[ticker].iloc[-1]
-            var = ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
+            p, var = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
             simbolo = ticker.replace('-USD','')
-            
-            if simbolo == "BTC":
-                msg += f"\n📊 ***Bitcoin***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_btc}"
-            elif simbolo == "ETH":
-                msg += f"\n⟠ ***Ethereum***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_eth}"
-            else:
-                msg += f"\n🔹 **{simbolo}**: US$ {p:,.4f} ({var:+.2f}%)"
+            if simbolo == "BTC": msg += f"📊 ***Bitcoin***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_btc}\n"
+            elif simbolo == "ETH": msg += f"⟠ ***Ethereum***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_eth}\n"
+            else: msg += f"🔹 **{simbolo}**: US$ {p:,.4f} ({var:+.2f}%)\n"
 
-        msg += "\n\n🏆 **NARRATIVAS (VOLUME)**"
+        msg += "\n🏆 **NARRATIVAS (VOLUME)**"
         for narra, ativos in narrativas_config.items():
-            # Extrai o emoji e o nome da categoria para colocar em negrito
-            partes = narra.split()
-            emoji = partes[0]
-            cat_nome = partes[1]
-            msg += f"\n\n{emoji} ***{cat_nome}***:"
+            p_n = narra.split(); msg += f"\n\n{p_n[0]} ***{p_n[1]}***:"
             for i, ticker in enumerate(ativos):
                 p, var_t = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
-                nome_moeda = ticker.replace('-USD','')
-                msg += f"\n {i+1}º **{nome_moeda}**: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
+                nome_m = ticker.replace('-USD','')
+                msg += f"\n {i+1}º **{nome_m}**: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
         
-        st.text_area("Texto do Radar:", msg, height=500)
-        col_c1, col_c2 = st.columns(2)
-        with col_c1: botao_copiar("Copiar Radar", msg, key="c_copy")
-        with col_c2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+        st.text_area("Relatório Cripto:", msg, height=400)
+        c1, c2 = st.columns(2)
+        with c1: botao_copiar("Copiar Radar", msg, key="copy_c")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# (A lógica dos outros botões segue o mesmo padrão de Copy/WhatsApp)
+# --- BOTÃO MACRO ---
+if btn_macro:
+    with st.spinner('Puxando Macro...'):
+        dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
+        agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
+        msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
+        for nome, ticker in list(macros_tickers.items()):
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+        st.text_area("Relatório Macro:", msg, height=300)
+        c1, c2 = st.columns(2)
+        with c1: botao_copiar("Copiar Macro", msg, key="copy_m")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+
+# --- APOIO E PAGAMENTOS (ESTÁ AQUI!) ---
+st.markdown("---")
+st.subheader("🚀 Apoie o Projeto")
+col_p1, col_p2 = st.columns(2)
+with col_p1:
+    botao_copiar("Copiar PIX", "SUA_CHAVE_PIX_AQUI", cor="#00b5a4", key="pay_pix")
+with col_p2:
+    botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="pay_bin")
+
+st.info("Obrigado por apoiar a manutenção deste radar!")
