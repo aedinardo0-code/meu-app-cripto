@@ -28,6 +28,11 @@ macros_tickers = {
     "🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"
 }
 
+links_uteis = {
+    "📊 Análise & On-Chain": {"CoinMarketCap": "https://coinmarketcap.com", "DexScreener": "https://dexscreener.com", "Coinglass": "https://www.coinglass.com"},
+    "📅 Eventos": {"CryptoPanic": "https://cryptopanic.com", "Token Unlocks": "https://token.unlocks.app"}
+}
+
 # --- FUNÇÕES DE APOIO ---
 def buscar_dominancias():
     try:
@@ -73,13 +78,26 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
 # --- INTERFACE ---
 st.title("📡 Radar de Mercado")
 
-# Botões em lista conforme sua imagem
 btn_macro = st.button('🏛️ MACRO', use_container_width=True)
 btn_radar = st.button('🎯 CRIPTO', use_container_width=True)
 btn_unlock = st.button('🔓 UNLOCKS', use_container_width=True)
 btn_sites = st.button('🔗 SITES', use_container_width=True)
 
-# --- LÓGICA BOTÃO CRIPTO (ATUALIZADA) ---
+# --- 1. LÓGICA MACRO ---
+if btn_macro:
+    with st.spinner('Puxando Macro...'):
+        dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
+        agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
+        msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
+        for nome, ticker in macros_tickers.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+        st.text_area("Relatório Macro:", msg, height=300)
+        c1, c2 = st.columns(2)
+        with c1: botao_copiar("Copiar Macro", msg, key="copy_m")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+
+# --- 2. LÓGICA CRIPTO ---
 if btn_radar:
     with st.spinner('Sincronizando Favoritas...'):
         ativos_narrativas = [item for sublist in narrativas_config.values() for item in sublist]
@@ -111,21 +129,27 @@ if btn_radar:
         with c1: botao_copiar("Copiar Radar", msg, key="copy_c")
         with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- BOTÃO MACRO ---
-if btn_macro:
-    with st.spinner('Puxando Macro...'):
-        dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
-        agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
-        msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        for nome, ticker in list(macros_tickers.items()):
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-        st.text_area("Relatório Macro:", msg, height=300)
-        c1, c2 = st.columns(2)
-        with c1: botao_copiar("Copiar Macro", msg, key="copy_m")
-        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+# --- 3. LÓGICA UNLOCKS ---
+if btn_unlock:
+    hoje = datetime.now().date()
+    # Dados de exemplo para a estrutura
+    dados_u = [{"m": "ARB", "d": "2026-04-20", "q": "92M"}, {"m": "OP", "d": "2026-04-29", "q": "31M"}]
+    msg = f"🔓 *RADAR DE DESBLOQUEIOS*\n🕒 {hoje.strftime('%d/%m/%Y')}\n\n"
+    for i in dados_u:
+        msg += f"📅 *{i['m']}*: {i['d']} | Qtd: {i['q']}\n"
+    st.text_area("Texto Unlocks:", msg, height=200)
+    c1, c2 = st.columns(2)
+    with c1: botao_copiar("Copiar Unlocks", msg, key="copy_u")
+    with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- APOIO E PAGAMENTOS (ESTÁ AQUI!) ---
+# --- 4. LÓGICA SITES ---
+if btn_sites:
+    st.subheader("🔗 Links Úteis")
+    for cat, sites in links_uteis.items():
+        with st.expander(cat):
+            for n, u in sites.items(): st.markdown(f"[{n}]({u})")
+
+# --- APOIO E PAGAMENTOS (PIX E BINANCE ID) ---
 st.markdown("---")
 st.subheader("🚀 Apoie o Projeto")
 col_p1, col_p2 = st.columns(2)
@@ -133,5 +157,3 @@ with col_p1:
     botao_copiar("Copiar PIX", "SUA_CHAVE_PIX_AQUI", cor="#00b5a4", key="pay_pix")
 with col_p2:
     botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="pay_bin")
-
-st.info("Obrigado por apoiar a manutenção deste radar!")
