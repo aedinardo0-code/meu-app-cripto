@@ -16,9 +16,13 @@ projecoes = {
     "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
 }
 
-lista_favoritas = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"]
+# Lista Atualizada com LINK e XLM
+lista_favoritas = [
+    "BTC-USD", "ETH-USD", "XRP-USD", "XLM-USD", "SOL-USD", 
+    "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD",
+    "BNB-USD", "POL-USD", "ADA-USD"
+]
 
-# Narrativas com Emojis Temáticos
 narrativas_config = {
     "🤖 IA": ["NEAR-USD", "FET-USD"],
     "🏢 RWA": ["LINK-USD", "ONDO-USD"],
@@ -34,7 +38,6 @@ macros_tickers = {
     "🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"
 }
 
-# SEÇÃO DE SITES (ATUALIZADA)
 links_uteis = {
     "🔥 Liquidez & Gráficos": {
         "CoinMarketCap": "https://coinmarketcap.com",
@@ -56,7 +59,6 @@ links_uteis = {
     }
 }
 
-# DADOS DE UNLOCKS (MANUAL)
 dados_unlocks = [
     {"moeda": "SOL", "data": "22/04/2026", "valor": "$230M", "tipo": "Emissão"},
     {"moeda": "SUI", "data": "03/05/2026", "valor": "$105M", "tipo": "Investidores"},
@@ -66,7 +68,7 @@ dados_unlocks = [
     {"moeda": "OP", "data": "30/05/2026", "valor": "$54M", "tipo": "Core Contrib"}
 ]
 
-# --- FUNÇÕES DE APOIO ---
+# --- FUNÇÕES ---
 def buscar_dominancias():
     try:
         r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
@@ -115,26 +117,26 @@ btn_radar = c_nav[1].button('🎯 CRIPTO', use_container_width=True)
 btn_unlock = c_nav[2].button('🔓 UNLOCKS', use_container_width=True)
 btn_sites = c_nav[3].button('🔗 SITES', use_container_width=True)
 
-# --- 1. MACRO ---
 if btn_macro:
     with st.spinner('Lendo Macro...'):
         dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
         agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
         msg = f"📡 PANORAMA MACRO GLOBAL\n🕒 {agora}\n\n"
         for nome, ticker in macros_tickers.items():
-            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-            if "Nasdaq" in nome: msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n"
+            try:
+                p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+                msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
+                if "Nasdaq" in nome: msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n"
+            except: continue
         msg += f"\n🏛️ Projeção SELIC: 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}"
         st.text_area("Relatório Macro:", msg, height=350)
         botao_copiar("Copiar Macro", msg, key="m_cp")
 
-# --- 2. CRIPTO (TEXTO LIMPO) ---
 if btn_radar:
     with st.spinner('Sincronizando Mercado...'):
         ativos_todos = list(set(lista_favoritas + [item for sub in narrativas_config.values() for item in sub]))
         data = yf.download(ativos_todos, period="5d", interval="1d", progress=False)
-        precos, volumes = data['Close'], data['Volume'].iloc[-1]
+        precos, volumes = data['Close'], data['Volume']
         dom_btc, dom_eth = buscar_dominancias()
         agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
         
@@ -142,7 +144,10 @@ if btn_radar:
         msg += "💎 FAVORITAS\n"
         for ticker in lista_favoritas:
             try:
-                p, var = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
+                p = precos[ticker].iloc[-1]
+                v_ant = precos[ticker].iloc[-2]
+                if pd.isna(p): continue
+                var = ((p / v_ant) - 1) * 100 if not pd.isna(v_ant) else 0.0
                 simb = ticker.split('-')[0]
                 msg += f"{'💹' if var>=0 else '📉'} {simb}: US$ {p:,.2f} ({var:+.2f}%)\n"
                 if simb == "BTC": msg += f"  ∟ Dominância: {dom_btc}\n"
@@ -154,8 +159,12 @@ if btn_radar:
             msg += f"\n\n{narra}:"
             for t in ativos:
                 try:
-                    p, var_t = precos[t].iloc[-1], ((precos[t].iloc[-1]/precos[t].iloc[-2])-1)*100
-                    msg += f"\n {t.split('-')[0]}: US$ {p:,.2f} ({var_t:+.2f}%) | Vol: {format_vol(volumes[t])}"
+                    p = precos[t].iloc[-1]
+                    v_ant = precos[t].iloc[-2]
+                    if pd.isna(p): continue
+                    var_t = ((p / v_ant) - 1) * 100 if not pd.isna(v_ant) else 0.0
+                    vol_val = volumes[t].iloc[-1]
+                    msg += f"\n {t.split('-')[0]}: US$ {p:,.2f} ({var_t:+.2f}%) | Vol: {format_vol(vol_val)}"
                 except: continue
         
         st.text_area("Texto Limpo:", msg, height=450)
@@ -163,18 +172,15 @@ if btn_radar:
         with c1: botao_copiar("Copiar Radar", msg, key="c_cp")
         with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- 3. UNLOCKS (MANUAL) ---
 if btn_unlock:
     agora = datetime.now().strftime('%d/%m/%Y')
     msg = f"🔓 RADAR DE DESBLOQUEIOS (60 DIAS)\n🕒 Ref: {agora}\n\n"
     for item in dados_unlocks:
         msg += f"📅 {item['moeda']}: {item['data']} | Val: {item['valor']} ({item['tipo']})\n"
-    
     st.markdown("### 🔓 Próximos Desbloqueios")
     st.text_area("Texto Unlocks:", msg, height=250)
     botao_copiar("Copiar Desbloqueios", msg, key="u_cp")
 
-# --- 4. SITES (CENTRALIZADOS) ---
 if btn_sites:
     st.markdown("---")
     st.markdown("<h2 style='text-align: center;'>🔗 Central de Ferramentas</h2>", unsafe_allow_html=True)
@@ -184,7 +190,6 @@ if btn_sites:
         for i, (nome, url) in enumerate(sites.items()):
             cols[i % 2].link_button(nome, url, use_container_width=True)
 
-# --- APOIO ---
 st.markdown("---")
 st.markdown("<h3 style='text-align: center;'>🚀 Apoie o Projeto</h3>", unsafe_allow_html=True)
 cp1, cp2 = st.columns(2)
