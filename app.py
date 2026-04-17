@@ -4,12 +4,13 @@ from datetime import datetime
 import urllib.parse
 import pytz
 import pandas as pd
+import requests
 import streamlit.components.v1 as components
 
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS ATUALIZADO ---
+# --- BANCO DE DADOS ---
 projecoes = {
     "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
     "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
@@ -17,12 +18,13 @@ projecoes = {
 
 lista_favoritas = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"]
 
+# Narrativas com Emojis Temáticos
 narrativas_config = {
-    "IA": ["NEAR-USD", "FET-USD"],
-    "RWA": ["LINK-USD", "ONDO-USD"],
-    "WEB3/L1": ["ETH-USD", "SOL-USD"],
-    "DEPIN": ["RENDER-USD", "HNT-USD"],
-    "MEMES": ["DOGE-USD", "WIF-USD"]
+    "🤖 IA": ["NEAR-USD", "FET-USD"],
+    "🏢 RWA": ["LINK-USD", "ONDO-USD"],
+    "🌐 WEB3/L1": ["ETH-USD", "SOL-USD"],
+    "📡 DEPIN": ["RENDER-USD", "HNT-USD"],
+    "🤡 MEMES": ["DOGE-USD", "WIF-USD"]
 }
 
 macros_tickers = {
@@ -35,6 +37,8 @@ macros_tickers = {
 # SEÇÃO DE SITES (ATUALIZADA)
 links_uteis = {
     "🔥 Liquidez & Gráficos": {
+        "CoinMarketCap": "https://coinmarketcap.com",
+        "CoinGecko": "https://www.coingecko.com",
         "Mapa de Liquidação (Coinglass)": "https://www.coinglass.com/pt/pro/futures/LiquidationHeatMap",
         "Crypto Bubbles (Bolinhas)": "https://cryptobubbles.net",
         "Preços TradingView": "https://br.tradingview.com/markets/cryptocurrencies/prices-all/",
@@ -48,12 +52,11 @@ links_uteis = {
     },
     "📰 Notícias Brasil": {
         "LiveCoins": "https://livecoins.com.br",
-        "Portal do Bitcoin": "https://portaldobitcoin.uol.com.br",
-        "CoinTelegraph Brasil": "https://br.telegraph.com"
+        "Portal do Bitcoin": "https://portaldobitcoin.uol.com.br"
     }
 }
 
-# DADOS DE UNLOCKS (MANUAL - PRÓXIMOS 60 DIAS)
+# DADOS DE UNLOCKS (MANUAL)
 dados_unlocks = [
     {"moeda": "SOL", "data": "22/04/2026", "valor": "$230M", "tipo": "Emissão"},
     {"moeda": "SUI", "data": "03/05/2026", "valor": "$105M", "tipo": "Investidores"},
@@ -64,6 +67,14 @@ dados_unlocks = [
 ]
 
 # --- FUNÇÕES DE APOIO ---
+def buscar_dominancias():
+    try:
+        r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
+        btc = f"{r['data']['market_cap_percentage']['btc']:.1f}%"
+        eth = f"{r['data']['market_cap_percentage']['eth']:.1f}%"
+        return btc, eth
+    except: return "57.3%", "10.9%"
+
 def format_vol(vol):
     try:
         if pd.isna(vol) or vol == 0: return "$---"
@@ -124,6 +135,7 @@ if btn_radar:
         ativos_todos = list(set(lista_favoritas + [item for sub in narrativas_config.values() for item in sub]))
         data = yf.download(ativos_todos, period="5d", interval="1d", progress=False)
         precos, volumes = data['Close'], data['Volume'].iloc[-1]
+        dom_btc, dom_eth = buscar_dominancias()
         agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
         
         msg = f"📡 RADAR CRIPTO & ECOSSISTEMAS\n🕒 {agora}\n\n"
@@ -133,11 +145,13 @@ if btn_radar:
                 p, var = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
                 simb = ticker.split('-')[0]
                 msg += f"{'💹' if var>=0 else '📉'} {simb}: US$ {p:,.2f} ({var:+.2f}%)\n"
+                if simb == "BTC": msg += f"  ∟ Dominância: {dom_btc}\n"
+                if simb == "ETH": msg += f"  ∟ Dominância: {dom_eth}\n"
             except: continue
 
         msg += "\n🏆 NARRATIVAS (VOLUME 24H)"
         for narra, ativos in narrativas_config.items():
-            msg += f"\n\n🔹 {narra}:"
+            msg += f"\n\n{narra}:"
             for t in ativos:
                 try:
                     p, var_t = precos[t].iloc[-1], ((precos[t].iloc[-1]/precos[t].iloc[-2])-1)*100
