@@ -1,6 +1,6 @@
 import streamlit as st
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime
 import urllib.parse
 import pytz
 import pandas as pd
@@ -10,30 +10,47 @@ import streamlit.components.v1 as components
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS DE PROJEÇÕES ---
-projecoes = {
-    "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
-    "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
+# --- CONFIGURAÇÕES DE ATIVOS E LINKS ---
+lista_favoritas = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD"]
+
+narrativas_config = {
+    "🤖 IA": ["NEAR-USD", "FET-USD"],
+    "🏢 RWA": ["LINK-USD", "ONDO-USD"],
+    "🌐 WEB3/L1": ["ETH-USD", "SOL-USD"],
+    "📡 DEPIN": ["RENDER-USD", "HNT-USD"],
+    "🤡 MEMES": ["DOGE-USD", "WIF-USD"]
+}
+
+macros_tickers = {
+    "🌍 DXY": "DX-Y.NYB", "🏦 Treasury 10Y": "^TNX", "😱 VIX": "^VIX",
+    "📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F",
+    "🇧🇷 Ibovespa": "^BVSP", "💵 Dólar Comercial": "USDBRL=X",
+    "🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"
+}
+
+# A PARTE DOS SITES QUE FALTAVA:
+links_uteis = {
+    "📊 Análise & On-Chain": {
+        "CoinMarketCap": "https://coinmarketcap.com",
+        "DexScreener": "https://dexscreener.com",
+        "Coinglass": "https://www.coinglass.com",
+        "DefiLlama": "https://defillama.com"
+    },
+    "📅 Eventos & Notícias": {
+        "CryptoPanic": "https://cryptopanic.com",
+        "Token Unlocks": "https://token.unlocks.app",
+        "Investing.com": "https://br.investing.com"
+    }
 }
 
 # --- FUNÇÕES DE APOIO ---
-def buscar_dominancia():
+def buscar_dominancias():
     try:
         r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
-        return f"{r['data']['market_cap_percentage']['btc']:.1f}%"
-    except: return "57.2%"
-
-def buscar_top_100_coingecko():
-    try:
-        # Busca as top 100 moedas reais por market cap
-        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h"
-        data = requests.get(url, timeout=10).json()
-        df = pd.DataFrame(data)
-        altas = df.nlargest(3, 'price_change_percentage_24h')
-        baixas = df.nsmallest(3, 'price_change_percentage_24h')
-        return altas, baixas
-    except:
-        return None, None
+        btc = f"{r['data']['market_cap_percentage']['btc']:.1f}%"
+        eth = f"{r['data']['market_cap_percentage']['eth']:.1f}%"
+        return btc, eth
+    except: return "57.4%", "17.2%"
 
 def format_vol(vol):
     try:
@@ -60,120 +77,93 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
         document.execCommand('copy');
         document.body.removeChild(el);
         const btn = document.getElementById('{id_html}');
-        const originalText = btn.innerText;
         btn.innerText = '✅ COPIADO!';
         btn.style.backgroundColor = '#28a745';
-        setTimeout(function() {{ btn.innerText = originalText; btn.style.backgroundColor = '{cor}'; }}, 2000);
+        setTimeout(function() {{ btn.innerText = '📋 {label}'; btn.style.backgroundColor = '{cor}'; }}, 2000);
     }});
     </script>
     """
     return components.html(html_code, height=70)
 
-# --- CONFIGURAÇÕES DE ATIVOS ---
-macros_tickers = {
-    "🌍 DXY": "DX-Y.NYB", "🏦 Treasury 10Y": "^TNX", "😱 VIX": "^VIX",
-    "📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F",
-    "🇧🇷 Ibovespa": "^BVSP", "💵 Dólar Comercial": "USDBRL=X",
-    "🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"
-}
-
-narrativas_config = {
-    "🤖 IA": ["NEAR-USD", "FET-USD"],
-    "🏢 RWA": ["LINK-USD", "ONDO-USD"],
-    "🌐 Web3/L1": ["ETH-USD", "SOL-USD"],
-    "📡 DePIN": ["RENDER-USD", "HNT-USD"],
-    "🤡 Memes": ["DOGE-USD", "WIF-USD"]
-}
-
-# --- INTERFACE ---
+# --- INTERFACE PRINCIPAL ---
 st.title("📡 Radar de Mercado")
-c1, c2, c3, c4 = st.columns(4)
-with c1: btn_macro = st.button('🏛️ MACRO', use_container_width=True)
-with c2: btn_radar = st.button('🎯 CRIPTO', use_container_width=True)
-with c3: btn_unlock = st.button('🔓 UNLOCKS', use_container_width=True)
-with c4: btn_sites = st.button('🔗 SITES', use_container_width=True)
 
-# --- BOTÃO 1: MACRO ---
+btn_macro = st.button('🏛️ MACRO', use_container_width=True)
+btn_radar = st.button('🎯 CRIPTO', use_container_width=True)
+btn_unlock = st.button('🔓 UNLOCKS', use_container_width=True)
+btn_sites = st.button('🔗 SITES', use_container_width=True)
+
+# --- 1. LÓGICA MACRO ---
 if btn_macro:
-    with st.spinner('Acessando dados globais...'):
+    with st.spinner('Puxando Macro...'):
         dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
         msg = f"📡 *PANORAMA MACRO GLOBAL*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        msg += "🇺🇸 *MERCADO EUA & JUROS*\n"
-        for nome, ticker in list(macros_tickers.items())[:6]:
-            p = dados[ticker].iloc[-1]
-            var = ((p/dados[ticker].iloc[-2])-1)*100
+        for nome, ticker in macros_tickers.items():
+            p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
             msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-        msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n\n"
-        msg += "🇧🇷 *MERCADO BRASIL (B3)*\n"
-        for nome, ticker in list(macros_tickers.items())[6:]:
-            p = dados[ticker].iloc[-1]
-            var = ((p/dados[ticker].iloc[-2])-1)*100
-            msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-        msg += f"🏛️ Projeção SELIC: 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}\n"
-        st.text_area("Texto do Relatório:", msg, height=300)
-        col_m1, col_m2 = st.columns(2)
-        with col_m1: botao_copiar("Copiar Relatório", msg, key="macro_copy")
-        with col_m2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+        st.text_area("Relatório Macro:", msg, height=300)
+        c1, c2 = st.columns(2)
+        with c1: botao_copiar("Copiar Macro", msg, key="copy_m")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- BOTÃO 2: CRIPTO ---
+# --- 2. LÓGICA CRIPTO (OPÇÃO FAVORITAS) ---
 if btn_radar:
-    with st.spinner('Buscando dados Reais do Top 100...'):
-        assets_narra = [item for sublist in narrativas_config.values() for item in sublist] + ["BTC-USD"]
-        data_yf = yf.download(assets_narra, period="5d", interval="1d", progress=False)
-        precos, volumes = data_yf['Close'], data_yf['Volume'].iloc[-1]
-        altas_cg, baixas_cg = buscar_top_100_coingecko()
+    with st.spinner('Sincronizando Favoritas...'):
+        ativos_narrativas = [item for sublist in narrativas_config.values() for item in sublist]
+        todos_ativos = list(set(lista_favoritas + ativos_narrativas))
+        data = yf.download(todos_ativos, period="5d", interval="1d", progress=False)
+        precos, volumes = data['Close'], data['Volume'].iloc[-1]
         agora = datetime.now(pytz.timezone('America/Sao_Paulo'))
+        dom_btc, dom_eth = buscar_dominancias()
         
         msg = f"📡 *RADAR CRIPTO & ECOSSISTEMAS*\n🕒 {agora.strftime('%d/%m/%Y %H:%M')}\n\n"
-        msg += f"📊 *Bitcoin:* US$ {precos['BTC-USD'].iloc[-1]:,.2f} ({((precos['BTC-USD'].iloc[-1]/precos['BTC-USD'].iloc[-2])-1)*100:+.2f}%)\n🍕 Dom: {buscar_dominancia()}\n\n"
-        
-        msg += "🏆 *Narrativas (Volume)*"
+        msg += "💎 *FAVORITAS*\n"
+        for ticker in lista_favoritas:
+            p, var = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
+            simbolo = ticker.replace('-USD','')
+            if simbolo == "BTC": msg += f"📊 ***Bitcoin***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_btc}\n"
+            elif simbolo == "ETH": msg += f"⟠ ***Ethereum***: US$ {p:,.2f} ({var:+.2f}%)\n∟ 🍕 Dom: {dom_eth}\n"
+            else: msg += f"🔹 **{simbolo}**: US$ {p:,.4f} ({var:+.2f}%)\n"
+
+        msg += "\n🏆 **NARRATIVAS (VOLUME)**"
         for narra, ativos in narrativas_config.items():
-            msg += f"\n\n*{narra}:*"
+            p_n = narra.split(); msg += f"\n\n{p_n[0]} ***{p_n[1]}***:"
             for i, ticker in enumerate(ativos):
                 p, var_t = precos[ticker].iloc[-1], ((precos[ticker].iloc[-1]/precos[ticker].iloc[-2])-1)*100
-                msg += f"\n {i+1}º {ticker.replace('-USD','')}: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
+                nome_m = ticker.replace('-USD','')
+                msg += f"\n {i+1}º **{nome_m}**: US$ {p:,.2f} ({var_t:+.2f}%){' ⚡' if var_t > 3 else ''}\n    ∟ Vol: {format_vol(volumes[ticker])}"
         
-        if altas_cg is not None:
-            msg += "\n\n🚀 *TOP 3 ALTAS GLOBAL (Top 100)* ⚡"
-            for _, row in altas_cg.iterrows():
-                msg += f"\n🟩 {row['symbol'].upper()}: {row['price_change_percentage_24h']:+.2f}% ⚡"
-            msg += "\n\n⚠️ *TOP 3 BAIXAS GLOBAL (Top 100)* 🪫"
-            for _, row in baixas_cg.iterrows():
-                msg += f"\n🟥 {row['symbol'].upper()}: {row['price_change_percentage_24h']:+.2f}% 🪫"
-        
-        st.text_area("Texto do Radar:", msg, height=500)
-        col_c1, col_c2 = st.columns(2)
-        with col_c1: botao_copiar("Copiar Radar", msg, key="cripto_copy")
-        with col_c2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+        st.text_area("Relatório Cripto:", msg, height=400)
+        c1, c2 = st.columns(2)
+        with c1: botao_copiar("Copiar Radar", msg, key="copy_c")
+        with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- BOTÃO 3: UNLOCKS ---
+# --- 3. LÓGICA UNLOCKS ---
 if btn_unlock:
     hoje = datetime.now().date()
-    dados_unlock = [{"m": "ARB", "d": "2026-04-20", "q": "92M"}, {"m": "OP", "d": "2026-04-29", "q": "31M"}, {"m": "SUI", "d": "2026-05-03", "q": "34M"}]
-    msg = f"🔓 *RADAR DE DESBLOQUEIOS (40D)*\n🕒 {hoje.strftime('%d/%m/%Y')}\n\n"
-    for i in dados_unlock:
-        dt = datetime.strptime(i['d'], "%Y-%m-%d").date()
-        faltam = (dt - hoje).days
-        msg += f"{'🚨' if faltam <= 7 else '📅'} *{i['m']}*: {dt.strftime('%d/%m/%Y')}\n   ∟ Faltam: {faltam} dias | Qtd: {i['q']}\n\n"
-    st.text_area("Texto Unlocks:", msg, height=250)
-    col_u1, col_u2 = st.columns(2)
-    with col_u1: botao_copiar("Copiar Unlocks", msg, key="unlock_copy")
-    with col_u2: st.link_button("📲 Enviar p/ WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
+    dados_u = [{"m": "ARB", "d": "2026-04-20", "q": "92M"}, {"m": "OP", "d": "2026-04-29", "q": "31M"}]
+    msg = f"🔓 *RADAR DE DESBLOQUEIOS*\n🕒 {hoje.strftime('%d/%m/%Y')}\n\n"
+    for i in dados_u:
+        msg += f"📅 *{i['m']}*: {i['d']} | Qtd: {i['q']}\n"
+    st.text_area("Texto Unlocks:", msg, height=200)
+    c1, c2 = st.columns(2)
+    with c1: botao_copiar("Copiar Unlocks", msg, key="copy_u")
+    with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- BOTÃO 4: SITES ---
+# --- 4. LÓGICA SITES (CORRIGIDO) ---
 if btn_sites:
     st.subheader("🔗 Central de Ferramentas")
-    c_l1, c_l2 = st.columns(2)
-    for i, (cat, sites) in enumerate(links_uteis.items()):
-        with (c_l1 if i % 2 == 0 else c_l2):
-            with st.expander(f"**{cat}**", expanded=True):
-                for nome, url in sites.items(): st.markdown(f"🔗 [{nome}]({url})")
+    for categoria, sites in links_uteis.items():
+        with st.expander(f"**{categoria}**", expanded=True):
+            for nome, url in sites.items():
+                st.markdown(f"🔗 [{nome}]({url})")
 
-# --- APOIO ---
+# --- APOIO E PAGAMENTOS ---
 st.markdown("---")
 st.subheader("🚀 Apoie o Projeto")
-cp1, cp2 = st.columns(2)
-with cp1: botao_copiar("Copiar PIX", "SUA_CHAVE_PIX", cor="#00b5a4", key="pix_main")
-with cp2: botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="binance_main")
+col_p1, col_p2 = st.columns(2)
+with col_p1:
+    botao_copiar("Copiar PIX", "SUA_CHAVE_PIX_AQUI", cor="#00b5a4", key="pay_pix")
+with col_p2:
+    botao_copiar("Copiar Binance ID", "511081814", cor="#F3BA2F", key="pay_bin")
