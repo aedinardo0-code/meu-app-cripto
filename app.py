@@ -10,19 +10,21 @@ import streamlit.components.v1 as components
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS ---
+# --- BANCO DE DADOS (DADOS REAIS E CONFIGURAÇÕES) ---
+# Atualize estes valores manualmente quando houver novas reuniões do COPOM ou FED
 projecoes = {
     "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
     "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
 }
 
-# Lista Atualizada com LINK e XLM
+# Lista de Favoritas Atualizada (100% Real via Yahoo Finance)
 lista_favoritas = [
     "BTC-USD", "ETH-USD", "XRP-USD", "XLM-USD", "SOL-USD", 
     "AVAX-USD", "LINK-USD", "ALGO-USD", "SUI-USD",
     "BNB-USD", "POL-USD", "ADA-USD"
 ]
 
+# Narrativas com Emojis Temáticos
 narrativas_config = {
     "🤖 IA": ["NEAR-USD", "FET-USD"],
     "🏢 RWA": ["LINK-USD", "ONDO-USD"],
@@ -31,6 +33,7 @@ narrativas_config = {
     "🤡 MEMES": ["DOGE-USD", "WIF-USD"]
 }
 
+# Tickers do Mercado Tradicional (Macro)
 macros_tickers = {
     "🌍 DXY": "DX-Y.NYB", "🏦 Treasury 10Y": "^TNX", "😱 VIX": "^VIX",
     "📈 Dow Jones": "YM=F", "🇺🇸 S&P 500": "ES=F", "💻 Nasdaq": "NQ=F",
@@ -38,6 +41,7 @@ macros_tickers = {
     "🛢️ Brent": "BZ=F", "📀 Ouro": "GC=F", "⛽ PETR4": "PETR4.SA", "💎 VALE3": "VALE3.SA"
 }
 
+# Central de Links Úteis
 links_uteis = {
     "🔥 Liquidez & Gráficos": {
         "CoinMarketCap": "https://coinmarketcap.com",
@@ -50,7 +54,7 @@ links_uteis = {
     },
     "🐋 On-Chain & Unlocks": {
         "Whale Alert (Baleias)": "https://whale-alert.io",
-        "Token Unlocks": "https://token.unlocks.app",
+        "Token Unlocks (Oficial)": "https://token.unlocks.app",
         "DEXTools": "https://www.dextools.io"
     },
     "📰 Notícias Brasil": {
@@ -59,32 +63,28 @@ links_uteis = {
     }
 }
 
-dados_unlocks = [
-    {"moeda": "SOL", "data": "22/04/2026", "valor": "$230M", "tipo": "Emissão"},
-    {"moeda": "SUI", "data": "03/05/2026", "valor": "$105M", "tipo": "Investidores"},
-    {"moeda": "STRK", "data": "15/05/2026", "valor": "$32M", "tipo": "Ecosistema"},
-    {"moeda": "ARB", "data": "16/05/2026", "valor": "$65M", "tipo": "Time/Inv"},
-    {"moeda": "IMX", "data": "12/05/2026", "valor": "$48M", "tipo": "Desenvolvimento"},
-    {"moeda": "OP", "data": "30/05/2026", "valor": "$54M", "tipo": "Core Contrib"}
-]
-
-# --- FUNÇÕES ---
+# --- FUNÇÕES DE APOIO ---
 def buscar_dominancias():
+    """Busca dominância real via API pública da CoinGecko"""
     try:
         r = requests.get("https://api.coingecko.com/api/v3/global", timeout=5).json()
         btc = f"{r['data']['market_cap_percentage']['btc']:.1f}%"
         eth = f"{r['data']['market_cap_percentage']['eth']:.1f}%"
         return btc, eth
-    except: return "57.3%", "10.9%"
+    except:
+        return "N/A", "N/A"
 
 def format_vol(vol):
+    """Formata volumes grandes para leitura humana"""
     try:
         if pd.isna(vol) or vol == 0: return "$---"
         if vol >= 1e9: return f"${vol/1e9:.1f}B"
         return f"${vol/1e6:.0f}M"
-    except: return "$---"
+    except:
+        return "$---"
 
 def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
+    """Componente HTML/JS para copiar texto para o clipboard"""
     id_html = f"btn_{key}" if key else label.lower().replace(" ", "_")
     texto_js = texto_para_copiar.replace("\n", "\\n").replace("'", "\\'")
     html_code = f"""
@@ -108,32 +108,44 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
     """
     return components.html(html_code, height=70)
 
-# --- INTERFACE ---
+# --- INTERFACE PRINCIPAL ---
 st.markdown("<h1 style='text-align: center;'>📡 Radar de Mercado</h1>", unsafe_allow_html=True)
 
+# Barra de Navegação (4 Colunas)
 c_nav = st.columns(4)
 btn_macro = c_nav[0].button('🏛️ MACRO', use_container_width=True)
 btn_radar = c_nav[1].button('🎯 CRIPTO', use_container_width=True)
-btn_unlock = c_nav[2].button('🔓 UNLOCKS', use_container_width=True)
+# Botão Unlocks transformado em Link Direto
+c_nav[2].link_button('🔓 UNLOCKS', "https://token.unlocks.app", use_container_width=True)
 btn_sites = c_nav[3].button('🔗 SITES', use_container_width=True)
 
+# --- 1. LÓGICA DA SEÇÃO MACRO ---
 if btn_macro:
-    with st.spinner('Lendo Macro...'):
+    with st.spinner('Lendo indicadores globais...'):
         dados = yf.download(list(macros_tickers.values()), period="5d", interval="1d", progress=False)['Close']
         agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
+        
         msg = f"📡 PANORAMA MACRO GLOBAL\n🕒 {agora}\n\n"
         for nome, ticker in macros_tickers.items():
             try:
-                p, var = dados[ticker].iloc[-1], ((dados[ticker].iloc[-1]/dados[ticker].iloc[-2])-1)*100
+                p = dados[ticker].iloc[-1]
+                v_ant = dados[ticker].iloc[-2]
+                var = ((p / v_ant) - 1) * 100
                 msg += f"{'💹' if var>=0 else '📉'} {nome}: {p:,.2f} ({var:+.2f}%)\n"
-                if "Nasdaq" in nome: msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n"
+                
+                # Inserir projeções específicas abaixo do Nasdaq
+                if "Nasdaq" in nome:
+                    msg += f"🏛️ Projeção FED: 2026: {projecoes['FED_PROJ_2026']} | 2027: {projecoes['FED_PROJ_2027']}\n"
             except: continue
+            
         msg += f"\n🏛️ Projeção SELIC: 2026: {projecoes['SELIC_2026']} | 2027: {projecoes['SELIC_2027']}"
+        
         st.text_area("Relatório Macro:", msg, height=350)
         botao_copiar("Copiar Macro", msg, key="m_cp")
 
+# --- 2. LÓGICA DA SEÇÃO CRIPTO ---
 if btn_radar:
-    with st.spinner('Sincronizando Mercado...'):
+    with st.spinner('Sincronizando Mercado Real...'):
         ativos_todos = list(set(lista_favoritas + [item for sub in narrativas_config.values() for item in sub]))
         data = yf.download(ativos_todos, period="5d", interval="1d", progress=False)
         precos, volumes = data['Close'], data['Volume']
@@ -142,6 +154,7 @@ if btn_radar:
         
         msg = f"📡 RADAR CRIPTO & ECOSSISTEMAS\n🕒 {agora}\n\n"
         msg += "💎 FAVORITAS\n"
+        
         for ticker in lista_favoritas:
             try:
                 p = precos[ticker].iloc[-1]
@@ -149,6 +162,7 @@ if btn_radar:
                 if pd.isna(p): continue
                 var = ((p / v_ant) - 1) * 100 if not pd.isna(v_ant) else 0.0
                 simb = ticker.split('-')[0]
+                
                 msg += f"{'💹' if var>=0 else '📉'} {simb}: US$ {p:,.2f} ({var:+.2f}%)\n"
                 if simb == "BTC": msg += f"  ∟ Dominância: {dom_btc}\n"
                 if simb == "ETH": msg += f"  ∟ Dominância: {dom_eth}\n"
@@ -172,15 +186,7 @@ if btn_radar:
         with c1: botao_copiar("Copiar Radar", msg, key="c_cp")
         with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-if btn_unlock:
-    agora = datetime.now().strftime('%d/%m/%Y')
-    msg = f"🔓 RADAR DE DESBLOQUEIOS (60 DIAS)\n🕒 Ref: {agora}\n\n"
-    for item in dados_unlocks:
-        msg += f"📅 {item['moeda']}: {item['data']} | Val: {item['valor']} ({item['tipo']})\n"
-    st.markdown("### 🔓 Próximos Desbloqueios")
-    st.text_area("Texto Unlocks:", msg, height=250)
-    botao_copiar("Copiar Desbloqueios", msg, key="u_cp")
-
+# --- 3. LÓGICA DA SEÇÃO SITES ---
 if btn_sites:
     st.markdown("---")
     st.markdown("<h2 style='text-align: center;'>🔗 Central de Ferramentas</h2>", unsafe_allow_html=True)
@@ -190,6 +196,7 @@ if btn_sites:
         for i, (nome, url) in enumerate(sites.items()):
             cols[i % 2].link_button(nome, url, use_container_width=True)
 
+# --- RODAPÉ / APOIO ---
 st.markdown("---")
 st.markdown("<h3 style='text-align: center;'>🚀 Apoie o Projeto</h3>", unsafe_allow_html=True)
 cp1, cp2 = st.columns(2)
