@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 # Configuração da Página
 st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide")
 
-# --- BANCO DE DADOS (DADOS REAIS E CONFIGURAÇÕES) ---
+# --- BANCO DE DADOS ---
 projecoes = {
     "SELIC_2026": "12,50%", "SELIC_2027": "10,50%",
     "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
@@ -62,11 +62,14 @@ links_uteis = {
     }
 }
 
-# --- FUNÇÕES DE APOIO COM CACHE ---
-@st.cache_data(ttl=600)  # Cache de 10 minutos para evitar excesso de requisições
-def buscar_dados_financeiros(tickers):
+# --- FUNÇÕES DE APOIO ---
+@st.cache_data(ttl=600)
+def buscar_dados_financeiros(tickers_list):
+    """Garante que tickers_list seja uma lista real para evitar erro de hash"""
     try:
-        return yf.download(list(tickers), period="5d", interval="1d", progress=False)
+        # Forçamos a conversão para lista caso venha algo diferente
+        lista = list(tickers_list)
+        return yf.download(lista, period="5d", interval="1d", progress=False)
     except:
         return pd.DataFrame()
 
@@ -115,17 +118,19 @@ def botao_copiar(label, texto_para_copiar, cor="#FF4B4B", key=None):
 # --- INTERFACE PRINCIPAL ---
 st.markdown("<h1 style='text-align: center;'>📡 Radar de Mercado</h1>", unsafe_allow_html=True)
 
-# Barra de Navegação
 c_nav = st.columns(4)
 btn_macro = c_nav[0].button('🏛️ MACRO', use_container_width=True)
 btn_radar = c_nav[1].button('🎯 CRIPTO', use_container_width=True)
 c_nav[2].link_button('🔓 UNLOCKS', "https://token.unlocks.app", use_container_width=True)
 btn_sites = c_nav[3].button('🔗 SITES', use_container_width=True)
 
-# --- 1. LÓGICA DA SEÇÃO MACRO ---
+# --- 1. SEÇÃO MACRO ---
 if btn_macro:
     with st.spinner('Lendo indicadores globais...'):
-        dados = buscar_dados_financeiros(macros_tickers.values())
+        # CORREÇÃO: Convertendo para list() aqui para o Cache aceitar
+        lista_macro = list(macros_tickers.values())
+        dados = buscar_dados_financeiros(lista_macro)
+        
         if not dados.empty:
             precos_fechamento = dados['Close']
             agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M')
@@ -147,7 +152,7 @@ if btn_macro:
             st.text_area("Relatório Macro:", msg, height=350)
             botao_copiar("Copiar Macro", msg, key="m_cp")
 
-# --- 2. LÓGICA DA SEÇÃO CRIPTO ---
+# --- 2. SEÇÃO CRIPTO ---
 if btn_radar:
     with st.spinner('Sincronizando Mercado Real...'):
         ativos_todos = list(set(lista_favoritas + [item for sub in narrativas_config.values() for item in sub]))
@@ -192,7 +197,7 @@ if btn_radar:
             with c1: botao_copiar("Copiar Radar", msg, key="c_cp")
             with c2: st.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}", use_container_width=True)
 
-# --- 3. LÓGICA DA SEÇÃO SITES ---
+# --- 3. SEÇÃO SITES ---
 if btn_sites:
     st.markdown("---")
     st.markdown("<h2 style='text-align: center;'>🔗 Central de Ferramentas</h2>", unsafe_allow_html=True)
@@ -202,7 +207,7 @@ if btn_sites:
         for i, (nome, url) in enumerate(sites.items()):
             cols[i % 2].link_button(nome, url, use_container_width=True)
 
-# --- RODAPÉ / APOIO ---
+# --- RODAPÉ ---
 st.markdown("---")
 st.markdown("<h3 style='text-align: center;'>🚀 Apoie o Projeto</h3>", unsafe_allow_html=True)
 cp1, cp2 = st.columns(2)
