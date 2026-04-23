@@ -12,7 +12,7 @@ st.set_page_config(page_title="Radar de Mercado", page_icon="📡", layout="wide
 
 # --- BANCO DE DADOS ---
 projecoes = {
-    "SELIC_2026": "15,00%", "SELIC_2027": "11,00%",
+    "SELIC_2026": "13,00%", "SELIC_2027": "11,00%",
     "FED_PROJ_2026": "3,40%", "FED_PROJ_2027": "3,10%"
 }
 
